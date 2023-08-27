@@ -1,0 +1,15 @@
+{
+  "domain": "junghome",
+  "name": "JUNG HOME",
+  "codeowners": [
+    "@jh"
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://www.home-assistant.io/integrations/junghome",
+  "homekit": {},
+  "iot_class": "local_polling",
+  "requirements": [],
+  "ssdp": [],
+  "zeroconf": []
+}
