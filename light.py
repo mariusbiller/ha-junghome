@@ -9,8 +9,7 @@ import voluptuous as vol
 
 # Import the device class from the component that you want to support
 import homeassistant.helpers.config_validation as cv
-from homeassistant.components.light import (ATTR_BRIGHTNESS, PLATFORM_SCHEMA,
-                                            LightEntity)
+from homeassistant.components.light import (ATTR_BRIGHTNESS, PLATFORM_SCHEMA, LightEntity)
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -41,30 +40,23 @@ def setup_platform(
 
 
 
-url = 'https://junghome.local/api/junghome/functions/'
-headers = {
-    'accept': 'application/json',
-    'token': 'eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiN2JiYTU3MmQifQ.61AM58FrBYKma7vAbaBoeTnJysiM6j4ZGTyPeBWC7uQ'
-}
+    url = 'https://' + host + '/api/junghome/functions/'
+    headers = {
+        'accept': 'application/json',
+        'token': password
+    }
 
-# Disabling SSL verification
-requests.packages.urllib3.disable_warnings()
+    # Disabling SSL verification
+    requests.packages.urllib3.disable_warnings()
+    response = requests.get(url, headers=headers, verify=False)
 
-response = requests.get(url, headers=headers, verify=False)
+    if response.status_code == 200:
+        devices = [{"name": item["label"], "type": item["type"], "id": item["id"], "brightness":0} for item in response.json()]
+        add_entities(AwesomeLight(light) for light in devices)
 
-if response.status_code == 200:
-    print("Request successful.")
-    print("Response:")
-    print(response.json())
-else:
-    print(f"Request failed with status code: {response.status_code}")
+    else:
+        print(f"Request failed with status code: {response.status_code}")
 
-
-    # Add devices
-    #add_entities(AwesomeLight(light) for light in hub.lights())
-    light1 ={"name":"JUNG HOME Light1","brightness":0}
-    light2 ={"name":"JUNG HOME Light2","brightness":0}
-    add_entities([AwesomeLight(light1),AwesomeLight(light2)])
     
     
 class AwesomeLight(LightEntity):

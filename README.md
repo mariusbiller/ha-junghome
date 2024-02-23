@@ -12,7 +12,7 @@ Add the following entry in your `configuration.yaml`:
 ```yaml
 light:
   - platform: junghome
-    host: HOST_HERE
-    username: USERNAME_HERE
-    password: PASSWORD_HERE (access token)
+    host: junghome.local
+    username: Home Assistant User
+    password:  access token
 ```
