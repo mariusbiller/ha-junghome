@@ -50,13 +50,22 @@ def setup_platform(
     requests.packages.urllib3.disable_warnings()
     response = requests.get(url, headers=headers, verify=False)
 
-    if response.status_code == 200:
-        devices = [{"name": item["label"], "type": item["type"], "id": item["id"], "brightness":0} for item in response.json()]
-        add_entities(AwesomeLight(light) for light in devices)
-
-    else:
+    if response.status_code != 200:
         print(f"Request failed with status code: {response.status_code}")
+        return
 
+    devices = []
+
+    for item in response.json():
+        device_info = {
+            "name": item["label"],
+            "type": item["type"],
+            "function_id": item["id"],
+            "brightness": 0  # Assuming a default brightness of 0
+        }
+        devices.append(device_info)
+
+    add_entities(AwesomeLight(light) for light in devices)
     
     
 class AwesomeLight(LightEntity):
@@ -66,6 +75,7 @@ class AwesomeLight(LightEntity):
         """Initialize an AwesomeLight."""
         self._light = light
         self._name = light["name"]
+        self._function_id = light["function_id"]
         self._state = None
         self._brightness = None
 
@@ -74,6 +84,10 @@ class AwesomeLight(LightEntity):
         """Return the display name of this light."""
         return self._name
 
+    @property
+    def unique_id(self) -> str | None:
+        return self._light["function_id"]
+        
     @property
     def brightness(self):
         """Return the brightness of the light.
@@ -90,22 +104,22 @@ class AwesomeLight(LightEntity):
 
     def turn_on(self, **kwargs: Any) -> None:
         """Instruct the light to turn on.
-
         You can skip the brightness part if your light does not support
         brightness control.
         """
         self._light["brightness"] = kwargs.get(ATTR_BRIGHTNESS, 255)
         #self._light.turn_on()
+        self._state = True
 
     def turn_off(self, **kwargs: Any) -> None:
         """Instruct the light to turn off."""
         #self._light.turn_off()
+        self._state = False
 
     def update(self) -> None:
         """Fetch new state data for this light.
 
         This is the only method that should fetch new data for Home Assistant.
         """
-        #self._light.update()
-        self._state = True;#self._light.is_on()
-        self._brightness =  self._light["brightness"]
+        self._brightness = self._light["brightness"]
+
