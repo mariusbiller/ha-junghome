@@ -177,6 +177,23 @@ class AwesomeLight(LightEntity):
 
         This is the only method that should fetch new data for Home Assistant.
         """
-        self._state =  self._state
+        url = f'https://junghome.local/api/junghome/functions/{self._device_id}/datapoints/{self._switch_id}'
+        headers = {
+            'accept': 'application/json',
+            'token': self._token
+        }
+        
+        try:
+            response = requests.get(url, headers=headers, verify=False)
+            response.raise_for_status()
+            data = response.json()
+            switch_value_str = data['values'][0]['value']
+            switch_value = bool(int(switch_value_str))
+            self._state = switch_value
+        except requests.exceptions.RequestException as e:
+            print(f"Failed to get switch state: {e}")
+            return None
+
+
         self._brightness = self._brightness
 
