@@ -17,6 +17,13 @@ light:
     password:  <access token>
 ```
 
+## Support Me
+
+If you find my work helpful, you can support me by buying me a coffee! ☕
+
+[![Buy Me a Coffee](https://img.buymeacoffee.com/button-api/?username=mariusbiller&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff)](https://www.buymeacoffee.com/mariusbiller)
+
+
 ## Disclaimer
 
 This project is a privately developed open-source integration for the smart home system JUNG HOME provided by Albrecht Jung GmbH & Co. KG. It is important to note that I have not been commissioned or authorized by them to create this integration.
