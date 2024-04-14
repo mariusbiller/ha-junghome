@@ -9,12 +9,11 @@ import voluptuous as vol
 
 # Import the device class from the component that you want to support
 import homeassistant.helpers.config_validation as cv
-from homeassistant.components.light import (ATTR_BRIGHTNESS, PLATFORM_SCHEMA, LightEntity)
+from homeassistant.components.light import (ATTR_BRIGHTNESS, SUPPORT_BRIGHTNESS, PLATFORM_SCHEMA, LightEntity, ColorMode)
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
-
 _LOGGER = logging.getLogger(__name__)
 
 # Validation of the user's configuration
@@ -88,6 +87,14 @@ class AwesomeLight(LightEntity):
         self._token = light["token"]
         self._state = False
         self._brightness = 0
+
+        """set supported mode"""
+        supported_color_modes = {ColorMode.ONOFF}
+        if False:
+            supported_color_modes.add(ColorMode.COLOR_TEMP)
+        if True:
+            supported_color_modes.add(ColorMode.BRIGHTNESS)
+        self._attr_supported_color_modes = supported_color_modes
 
     @property
     def name(self) -> str:
