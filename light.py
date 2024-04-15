@@ -61,12 +61,19 @@ def setup_platform(
             if datapoint.get("type") == "switch":
                 switch_id = datapoint.get("id")
                 break
+         # get brightness_id
+        brightness_id = None
+        for datapoint in item.get("datapoints", []):
+            if datapoint.get("type") == "brightness":
+                brightness_id = datapoint.get("id")
+                break
         if switch_id:
             device_info = {
                 "name": item["label"],
                 "type": item["type"],
                 "device_id": item["id"],
                 "switch_id": switch_id,
+                "brightness_id": brightness_id,
                 "token": password
             }
             devices.append(device_info)
@@ -84,6 +91,7 @@ class AwesomeLight(LightEntity):
         self._name = light["name"]
         self._device_id = light["device_id"]
         self._switch_id = light["switch_id"]
+        self._brightness_id = light["brightness_id"]
         self._token = light["token"]
         self._state = False
         self._brightness = 0
@@ -92,7 +100,7 @@ class AwesomeLight(LightEntity):
         supported_color_modes = {ColorMode.ONOFF}
         if False:
             supported_color_modes.add(ColorMode.COLOR_TEMP)
-        if True:
+        if self._brightness_id:
             supported_color_modes.add(ColorMode.BRIGHTNESS)
         self._attr_supported_color_modes = supported_color_modes
 
@@ -120,16 +128,11 @@ class AwesomeLight(LightEntity):
         return self._state
 
     def turn_on(self, **kwargs: Any) -> None:
-        """Instruct the light to turn on.
-        You can skip the brightness part if your light does not support
-        brightness control.
-        """
-        #self._light["brightness"] = kwargs.get(ATTR_BRIGHTNESS, 255)
-        self._brightness = 100
         #self._light.turn_on()
         self._state = True
+        self._brightness  = int(kwargs.get(ATTR_BRIGHTNESS,255))
         
-        url = f'https://junghome.local/api/junghome/functions/{self._device_id}/datapoints/{self._switch_id}'
+        url = f'https://junghome.local/api/junghome/functions/{self._device_id}/datapoints/{self._brightness_id}'
         headers = {
             'accept': 'application/json',
             'token': self._token,
@@ -138,8 +141,8 @@ class AwesomeLight(LightEntity):
         data = {
             "data": [
                 {
-                    "key": "switch",
-                    "value": "1"
+                    "key": "brightness",
+                    "value": str(int((self._brightness / 255) * 100))
                 }
             ]
         }
