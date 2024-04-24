@@ -1,4 +1,4 @@
-# homeassistant-jh
+# ha-junghome
 
 This integration shows how you would go ahead and integrate JUNG HOME devices into Home Assistant.
 

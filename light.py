@@ -30,77 +30,83 @@ def setup_platform(
     add_entities: AddEntitiesCallback,
     discovery_info: DiscoveryInfoType | None = None
 ) -> None:
-    """Set up the Awesome Light platform."""
-    # Assign configuration variables.
-    # The configuration check takes care they are present.
+    """Set up the Light platform."""
+    # Assign configuration variables
     host = config[CONF_HOST]
     username = config[CONF_USERNAME]
     password = config.get(CONF_PASSWORD)
 
-
-
+    # Disabling SSL verification
+    requests.packages.urllib3.disable_warnings()
+    
+    # get jung home devices
     url = 'https://' + host + '/api/junghome/functions/'
     headers = {
         'accept': 'application/json',
         'token': password
     }
-
-    # Disabling SSL verification
-    requests.packages.urllib3.disable_warnings()
     response = requests.get(url, headers=headers, verify=False)
-
     if response.status_code != 200:
         print(f"Request failed with status code: {response.status_code}")
         return
 
     devices = []
-    for item in response.json():
+    for device in response.json():
+    
+        # skip non-light devices 
+        light_types = ["OnOff", "DimmerLight", "ColorLight"] 
+        if device["type"] not in light_types:
+            continue
+        
         # get switch_id
         switch_id = None
-        for datapoint in item.get("datapoints", []):
+        for datapoint in device.get("datapoints", []):
             if datapoint.get("type") == "switch":
                 switch_id = datapoint.get("id")
                 break
-         # get brightness_id
+            
+        # Skip no switch datapoint
+        if switch_id is None:
+            continue  
+            
+        # get brightness_id
         brightness_id = None
-        for datapoint in item.get("datapoints", []):
+        for datapoint in device.get("datapoints", []):
             if datapoint.get("type") == "brightness":
                 brightness_id = datapoint.get("id")
                 break
-        if switch_id:
-            device_info = {
-                "name": item["label"],
-                "type": item["type"],
-                "device_id": item["id"],
-                "switch_id": switch_id,
-                "brightness_id": brightness_id,
-                "token": password
-            }
-            devices.append(device_info)
+        
+        # compose device info
+        device_info = {
+            "name": device["label"],
+            "device_id": device["id"],
+            "switch_id": switch_id,
+            "brightness_id": brightness_id,
+            "token": password
+        }
+        devices.append(device_info)
 
-    add_entities(AwesomeLight(light) for light in devices)
+    add_entities(LightClass(light) for light in devices)
 
 
     
     
-class AwesomeLight(LightEntity):
+class LightClass(LightEntity):
 
     def __init__(self, light) -> None:
-        """Initialize an AwesomeLight."""
+        """Initialize a Light."""
         self._light = light
         self._name = light["name"]
         self._device_id = light["device_id"]
         self._switch_id = light["switch_id"]
         self._brightness_id = light["brightness_id"]
         self._token = light["token"]
-        self._state = False
+        self._switch = False
         self._brightness = 0
 
         """set supported mode"""
         supported_color_modes = {ColorMode.ONOFF}
-        if False:
-            supported_color_modes.add(ColorMode.COLOR_TEMP)
-        if self._brightness_id:
+        if self._brightness_id is not None:
             supported_color_modes.add(ColorMode.BRIGHTNESS)
         self._attr_supported_color_modes = supported_color_modes
 
@@ -125,11 +131,11 @@ class AwesomeLight(LightEntity):
     @property
     def is_on(self) -> bool | None:
         """Return true if light is on."""
-        return self._state
+        return self._switch
 
     def turn_on(self, **kwargs: Any) -> None:
         #self._light.turn_on()
-        self._state = True
+        self._switch = True
         self._brightness  = int(kwargs.get(ATTR_BRIGHTNESS,255))
         
         url = f'https://junghome.local/api/junghome/functions/{self._device_id}/datapoints/{self._brightness_id}'
@@ -158,7 +164,7 @@ class AwesomeLight(LightEntity):
         """Instruct the light to turn off."""
         self._brightness = 0
         #self._light.turn_off()
-        self._state = False
+        self._switch = False
         
         url = f'https://junghome.local/api/junghome/functions/{self._device_id}/datapoints/{self._switch_id}'
         headers = {
@@ -199,7 +205,7 @@ class AwesomeLight(LightEntity):
             data = response.json()
             switch_value_str = data['values'][0]['value']
             switch_value = bool(int(switch_value_str))
-            self._state = switch_value
+            self._switch = switch_value
         except requests.exceptions.RequestException as e:
             print(f"Failed to get switch state: {e}")
             return None
