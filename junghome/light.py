@@ -49,9 +49,10 @@ def setup_platform(
     if response.status_code != 200:
         print(f"Request failed with status code: {response.status_code}")
         return
+    devices = response.json()
 
-    devices = []
-    for device in response.json():
+    lights = []
+    for device in devices:
     
         # skip non-light devices 
         light_types = ["OnOff", "DimmerLight", "ColorLight"] 
@@ -84,9 +85,9 @@ def setup_platform(
             "brightness_id": brightness_id,
             "token": password
         }
-        devices.append(device_info)
+        lights.append(device_info)
 
-    add_entities(LightClass(light) for light in devices)
+    add_entities(LightClass(light) for light in lights)
 
 
     

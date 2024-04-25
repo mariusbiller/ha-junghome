@@ -5,7 +5,7 @@
     "@mariusbiller"
   ],
   "dependencies": [],
-  "documentation": "https://github.com/mariusbiller/homeassistant-jh",
+  "documentation": "https://github.com/mariusbiller/ha-junghome",
   "homekit": {},
   "iot_class": "local_polling",
   "requirements": [],
