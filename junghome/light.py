@@ -2,9 +2,7 @@
 from __future__ import annotations
 
 import logging
-import requests
-
-#import junghome
+import junghome_client as junghome
 import voluptuous as vol
 
 # Import the device class from the component that you want to support
@@ -36,20 +34,8 @@ def setup_platform(
     username = config[CONF_USERNAME]
     password = config.get(CONF_PASSWORD)
 
-    # Disabling SSL verification
-    requests.packages.urllib3.disable_warnings()
-    
     # get jung home devices
-    url = 'https://' + host + '/api/junghome/functions/'
-    headers = {
-        'accept': 'application/json',
-        'token': password
-    }
-    response = requests.get(url, headers=headers, verify=False)
-    if response.status_code != 200:
-        print(f"Request failed with status code: {response.status_code}")
-        return
-    devices = response.json()
+    devices = junghome.request_devices(host, password)
 
     lights = []
     for device in devices:
