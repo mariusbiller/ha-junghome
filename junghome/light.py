@@ -131,20 +131,30 @@ class LightClass(LightEntity):
         """Instruct the light to turn on."""
         #self._light.turn_on()
         self._switch = True
-        self._brightness  = int(kwargs.get(ATTR_BRIGHTNESS,255))
         
-        url = f'https://junghome.local/api/junghome/functions/{self._device_id}/datapoints/{self._brightness_id}'
-        data = {
-            "data": [
-                {
-                    "key": "brightness",
-                    "value": str(int((self._brightness / 255) * 100))
-                }
-            ]
-        }
-        
-        response = junghome.http_patch_request(url, self._token, data)
-        if response is None: print("failed to turn on light.")
+        if self._brightness_id is not None:
+            """turn on by setting brightness"""
+            self._brightness  = int(kwargs.get(ATTR_BRIGHTNESS,255))
+            url = f'https://junghome.local/api/junghome/functions/{self._device_id}/datapoints/{self._brightness_id}'
+            body = {
+                "data": [{
+                            "key": "brightness",
+                            "value": str(int((self._brightness / 255) * 100))
+                        }]
+            }
+            response = junghome.http_patch_request(url, self._token, body)
+            if response is None: print("failed to turn on light.")
+        else:
+            """turn on by switching"""
+            url = f'https://junghome.local/api/junghome/functions/{self._device_id}/datapoints/{self._switch_id}'
+            body = {
+                "data": [{
+                            "key": "switch",
+                            "value": "1"
+                        }]
+            }
+            response = junghome.http_patch_request(url, self._token, body)
+            if response is None: print("failed to turn off light.")
 
 
 
@@ -155,16 +165,13 @@ class LightClass(LightEntity):
         self._brightness = 0
         
         url = f'https://junghome.local/api/junghome/functions/{self._device_id}/datapoints/{self._switch_id}'
-        data = {
-            "data": [
-                {
-                    "key": "switch",
-                    "value": "0"
-                }
-            ]
+        body = {
+            "data": [{
+                        "key": "switch",
+                        "value": "0"
+                    }]
         }
-        
-        response = junghome.http_patch_request(url, self._token, data)
+        response = junghome.http_patch_request(url, self._token, body)
         if response is None: print("failed to turn off light.")
 
 
