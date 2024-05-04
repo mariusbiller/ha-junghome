@@ -1,0 +1,15 @@
+{
+  "domain": "junghome",
+  "name": "JUNG HOME",
+  "codeowners": [
+    "@mariusbiller"
+  ],
+  "dependencies": [],
+  "documentation": "https://github.com/mariusbiller/ha-junghome",
+  "homekit": {},
+  "iot_class": "local_polling",
+  "requirements": [],
+  "version": "0.1.0",
+  "ssdp": [],
+  "zeroconf": []
+}

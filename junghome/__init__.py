@@ -1,0 +1,1 @@
+"""JUNG HOME light integration."""
