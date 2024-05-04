@@ -70,6 +70,7 @@ def setup_platform(
             "device_id": device["id"],
             "switch_id": switch_id,
             "brightness_id": brightness_id,
+            "ip": host,
             "token": password
         }
         lights.append(device_info)
@@ -89,6 +90,7 @@ class LightClass(LightEntity):
         self._switch_id = light["switch_id"]
         self._brightness_id = light["brightness_id"]
         self._token = light["token"]
+        self._ip = light["ip"]
         self._switch = False
         self._brightness = 0
 
@@ -135,7 +137,7 @@ class LightClass(LightEntity):
         if self._brightness_id is not None:
             """turn on by setting brightness"""
             self._brightness  = int(kwargs.get(ATTR_BRIGHTNESS,255))
-            url = f'https://junghome.local/api/junghome/functions/{self._device_id}/datapoints/{self._brightness_id}'
+            url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self._brightness_id}'
             body = {
                 "data": [{
                             "key": "brightness",
@@ -146,7 +148,7 @@ class LightClass(LightEntity):
             if response is None: print("failed to turn on light.")
         else:
             """turn on by switching"""
-            url = f'https://junghome.local/api/junghome/functions/{self._device_id}/datapoints/{self._switch_id}'
+            url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self._switch_id}'
             body = {
                 "data": [{
                             "key": "switch",
@@ -164,7 +166,7 @@ class LightClass(LightEntity):
         self._switch = False
         self._brightness = 0
         
-        url = f'https://junghome.local/api/junghome/functions/{self._device_id}/datapoints/{self._switch_id}'
+        url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self._switch_id}'
         body = {
             "data": [{
                         "key": "switch",
@@ -181,7 +183,7 @@ class LightClass(LightEntity):
         This is the only method that should fetch new data for Home Assistant.
         """
         
-        url = f'https://junghome.local/api/junghome/functions/{self._device_id}/datapoints/{self._switch_id}'
+        url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self._switch_id}'
         headers = {
             'accept': 'application/json',
             'token': self._token
