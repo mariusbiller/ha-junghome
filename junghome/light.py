@@ -42,7 +42,7 @@ def setup_platform(
     for device in devices:
     
         # skip non-light devices 
-        light_types = ["OnOff", "DimmerLight", "ColorLight"] 
+        light_types = ["OnOff", "DimmerLight", "ColorLight", "Socket"] 
         if device["type"] not in light_types:
             continue
         
