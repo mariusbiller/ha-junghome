@@ -1,12 +1,17 @@
 # ha-junghome
+This is a bare minimum example integration showing how to integrate JUNG HOME devices into Home Assistant.
 
-This integration shows how you would go ahead and integrate JUNG HOME devices into Home Assistant.
+## Supported device types
+- OnOff Light
+- Dimmable Light
+- Tuneable White Light (switching and brightness only)
+- Socket (displayed as Light)
 
+>**hint:**
+*Please note that the provided integration is a bare minimum example and may have limitations regarding its quality and functionality.*
 
 ## Installation
-
 Copy this folder to `<config_dir>/custom_components/junghome/`.
-
 Add the following entry in your `configuration.yaml`:
 
 ```yaml
