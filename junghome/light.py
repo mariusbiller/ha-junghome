@@ -8,11 +8,12 @@ from .junghome_client import JunghomeGateway as junghome
 
 # Import the device class from the component that you want to support
 import homeassistant.helpers.config_validation as cv
-from homeassistant.components.light import (ATTR_BRIGHTNESS, SUPPORT_BRIGHTNESS, PLATFORM_SCHEMA, LightEntity, ColorMode)
+from homeassistant.components.light import (ATTR_BRIGHTNESS, PLATFORM_SCHEMA, LightEntity, ColorMode)
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
+from homeassistant.helpers.entity import DeviceInfo
 _LOGGER = logging.getLogger(__name__)
 
 # Validation of the user's configuration
@@ -94,11 +95,13 @@ class LightClass(LightEntity):
         self._switch = False
         self._brightness = 0
 
-        """set supported mode"""
-        supported_color_modes = {ColorMode.ONOFF}
+        # Set supported color modes
+        self._attr_supported_color_modes = {ColorMode.ONOFF}
         if self._brightness_id is not None:
-            supported_color_modes.add(ColorMode.BRIGHTNESS)
-        self._attr_supported_color_modes = supported_color_modes
+            self._attr_supported_color_modes.add(ColorMode.BRIGHTNESS)
+        
+        # Initialize color mode
+        self._attr_color_mode = ColorMode.ONOFF
 
 
     @property
@@ -106,11 +109,14 @@ class LightClass(LightEntity):
         """Return the display name of this light."""
         return self._name
 
-
     @property
     def unique_id(self) -> str | None:
         return self._light["device_id"]
         
+    @property
+    def is_on(self) -> bool | None:
+        """Return true if light is on."""
+        return self._switch
         
     @property
     def brightness(self):
@@ -121,22 +127,14 @@ class LightClass(LightEntity):
         """
         return self._brightness
 
-
-    @property
-    def is_on(self) -> bool | None:
-        """Return true if light is on."""
-        return self._switch
-
-
-
-    def turn_on(self, **kwargs: Any) -> None:
-        """Instruct the light to turn on."""
-        #self._light.turn_on()
+    def turn_on(self, **kwargs) -> None:
+        """Turn the light on."""
         self._switch = True
         
-        if self._brightness_id is not None:
+        if ATTR_BRIGHTNESS in kwargs:
             """turn on by setting brightness"""
             self._brightness  = int(kwargs.get(ATTR_BRIGHTNESS,255))
+            self._attr_color_mode = ColorMode.BRIGHTNESS
             url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self._brightness_id}'
             body = {
                 "data": [{
@@ -148,6 +146,7 @@ class LightClass(LightEntity):
             if response is None: print("failed to turn on light.")
         else:
             """turn on by switching"""
+            self._attr_color_mode = ColorMode.ONOFF
             url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self._switch_id}'
             body = {
                 "data": [{
@@ -157,13 +156,11 @@ class LightClass(LightEntity):
             }
             response = junghome.http_patch_request(url, self._token, body)
             if response is None: print("failed to turn off light.")
-
-
-
-    def turn_off(self, **kwargs: Any) -> None:
-        """Instruct the light to turn off."""
-        #self._light.turn_off()
+        
+    def turn_off(self, **kwargs) -> None:
+        """Turn the light off."""
         self._switch = False
+        self._attr_color_mode = ColorMode.ONOFF
         self._brightness = 0
         
         url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self._switch_id}'
