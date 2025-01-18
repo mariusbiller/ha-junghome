@@ -1,0 +1,14 @@
+{
+  "domain": "junghome_cover",
+  "name": "JUNG HOME Cover",
+  "codeowners": ["@sillyfrog"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://www.home-assistant.io/integrations/detailed_hello_world_push",
+  "homekit": {},
+  "iot_class": "local_push",
+  "requirements": [],
+  "ssdp": [],
+  "version": "0.1.0",
+  "zeroconf": []
+}
