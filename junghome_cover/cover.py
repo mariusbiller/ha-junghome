@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
+
 # These constants are relevant to the type of entity we are using.
 # See below for how they are used.
 from homeassistant.components.cover import (
@@ -14,8 +15,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import HubConfigEntry
-from .const import DOMAIN
-
+from .const import (DOMAIN, MANUFACTURER)
 
 # This function is called as part of the __init__.async_setup_entry (via the
 # hass.config_entries.async_forward_entry_setup call)
@@ -107,8 +107,7 @@ class HelloWorldCover(CoverEntity):
             "name": self.name,
             "sw_version": self._roller.firmware_version,
             "model": self._roller.model,
-            "manufacturer": self._roller.hub.manufacturer,
-            
+            "manufacturer": MANUFACTURER,
         }
 
     # This property is important to let HA know if this entity is online or not.

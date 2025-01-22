@@ -1,28 +1,25 @@
 """A demonstration 'hub' that connects several devices."""
 from __future__ import annotations
 
-# In a real implementation, this would be in an external library that's on PyPI.
-# The PyPI package needs to be included in the `requirements` section of manifest.json
-# See https://developers.home-assistant.io/docs/creating_integration_manifest
-# for more information.
-# This dummy hub always returns 3 rollers.
 import asyncio
 import random
 
 from homeassistant.core import HomeAssistant
 
-
+#
+# HUB
+#
 class Hub:
-    """Dummy hub for Hello World example."""
 
     manufacturer = "Demonstration Corp"
 
-    def __init__(self, hass: HomeAssistant, host: str) -> None:
+    def __init__(self, hass: HomeAssistant, ip: str, token: str) -> None:
         """Init dummy hub."""
-        self._host = host
+        self._ip = ip
+        self._token = token
         self._hass = hass
-        self._name = host
-        self._id = host.lower()
+        self._name = ip
+        self._id = ip.lower()
         self.rollers = [
             Roller(f"{self._id}_1", f"{self._name} 1", self),
             Roller(f"{self._id}_2", f"{self._name} 2", self),
@@ -32,13 +29,16 @@ class Hub:
 
     @property
     def hub_id(self) -> str:
-        """ID for dummy hub."""
         return self._id
 
     async def test_connection(self) -> bool:
         """Test connectivity to the Dummy hub is OK."""
         await asyncio.sleep(1)
-        return True
+
+        # Dummy validation logic for the token
+        if self._token == "valid_token":
+            return True
+        return False
 
 
 class Roller:
