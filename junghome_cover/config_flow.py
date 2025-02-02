@@ -1,17 +1,11 @@
-"""Config flow for Hello World integration."""
 from __future__ import annotations
-
-import logging
 from typing import Any
-
 import voluptuous as vol
-
 from homeassistant import config_entries, exceptions
 from homeassistant.core import HomeAssistant
-
 from .const import DOMAIN  # pylint:disable=unused-import
 from .hub import Hub
-
+import logging
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -22,7 +16,6 @@ DATA_SCHEMA = vol.Schema({
 
 
 async def validate_input(hass: HomeAssistant, data: dict) -> dict[str, Any]:
-    """Validate the user input allows us to connect."""
     if len(data["ip"]) < 3:
         raise InvalidIP
 

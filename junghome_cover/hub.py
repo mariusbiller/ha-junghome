@@ -1,20 +1,16 @@
 from __future__ import annotations
-
-
-import logging
-
 from homeassistant.core import HomeAssistant
 from .junghome_client import JunghomeGateway as junghome
-
-# Set up logging for this integration
+import logging
 _LOGGER = logging.getLogger(__name__)
 
 #
 # HUB
 #
 class Hub:
+    
+    """Init hub."""
     def __init__(self, hass: HomeAssistant, ip: str, token: str) -> None:
-        """Init hub."""
         self.ip = ip
         self.token = token
         self._hass = hass
@@ -30,7 +26,6 @@ class Hub:
         return self._id
 
     async def test_connection(self) -> bool:
-        """Test connectivity to the Dummy hub is OK."""
         _LOGGER.info("Testing connection to the hub...")
 
         # Dummy validation logic for the token
