@@ -35,9 +35,9 @@ async def async_setup_entry(
     hub = config_entry.runtime_data
 
     new_devices = []
-    for roller in hub.rollers:
-        new_devices.append(BatterySensor(roller))
-        new_devices.append(IlluminanceSensor(roller))
+    #for roller in hub.rollers:
+    #    new_devices.append(BatterySensor(roller))
+    #    new_devices.append(IlluminanceSensor(roller))
     if new_devices:
         async_add_entities(new_devices)
 

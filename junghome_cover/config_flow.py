@@ -27,6 +27,8 @@ async def validate_input(hass: HomeAssistant, data: dict) -> dict[str, Any]:
         raise InvalidIP
 
     hub = Hub(hass, data["ip"], data["token"])
+    await hub.async_initialize()
+    
     result = await hub.test_connection()
     if not result:
         raise CannotConnect
