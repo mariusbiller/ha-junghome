@@ -12,5 +12,10 @@
   ],
   "ssdp": [],
   "version": "0.1.0",
-  "zeroconf": []
+  "zeroconf": [],
+  "dhcp": [
+    {
+      "hostname": "junghome*"
+    }
+  ]
 }
