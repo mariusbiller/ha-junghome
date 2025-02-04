@@ -140,10 +140,34 @@ class WindowCover(CoverEntity):
     async def async_open_cover(self, **kwargs: Any) -> None:
         """Open the cover."""
         self.position  = 0
+        
+        """Set the cover position."""
+        url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self.roller_id}'
+        body = {
+            "data": [{
+                        "key": "level",
+                        "value": str(int(self.position))
+                    }]
+        }
+        response = await junghome.http_patch_request(url, self._token, body)
+        if response is None: print("failed to move on cover.")
+
 
     async def async_close_cover(self, **kwargs: Any) -> None:
         """Close the cover."""
         self.position  = 100
+        
+        """Set the cover position."""
+        url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self.roller_id}'
+        body = {
+            "data": [{
+                        "key": "level",
+                        "value": str(int(self.position))
+                    }]
+        }
+        response = await junghome.http_patch_request(url, self._token, body)
+        if response is None: print("failed to move on cover.")
+
 
     async def async_set_cover_position(self, **kwargs: Any) -> None:
         """Set the cover position."""
