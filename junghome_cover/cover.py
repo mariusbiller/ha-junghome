@@ -66,6 +66,7 @@ class WindowCover(CoverEntity):
         CoverEntityFeature.SET_POSITION | CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE
     )
 
+    # INIT
     def __init__(self, device_id: str, state_id: str, name: str, hub: HubConfigEntry) -> None:
         self._device_id = device_id
         self.roller_id = state_id
@@ -81,69 +82,69 @@ class WindowCover(CoverEntity):
         self._attr_name = self.name
         
         _LOGGER.debug(f"Initialized cover: {self.name} with ID {self._device_id}")
+    
+    
+    # GET INFO
     @property
     def device_info(self) -> DeviceInfo:
-        return {
+        info = {
             "identifiers": {(DOMAIN, self.roller_id)},
             "name": self.name,
-            "sw_version": "0.0.0",
             "model": "WindowCover",
             "manufacturer": MANUFACTURER,
         }
+        return info
 
-    # shows if device is online or not
+
+    # GET ONLINE
     @property
     def available(self) -> bool:
-        online = True # fake online state
+        online = True # fake always online state
         return online
 
+
+    # GET POSITION
     @property
     def current_cover_position(self):
         """Return the current position of the cover."""
         return self.position
 
+
+    # GET CLOSED
     @property
     def is_closed(self) -> bool:
         """Return if the cover is closed, same as position 0."""
         return self.position == 0
-
-    @property
-    def is_closing(self) -> bool:
-        """Return if the cover is closing or not."""
-        return self.moving < 0
-
-    @property
-    def is_opening(self) -> bool:
-        """Return if the cover is opening or not."""
-        return self.moving > 0
-
-    # OPEN
-    async def async_open_cover(self, **kwargs: Any) -> None:
-        """Open the cover."""
-        self.position  = 0
         
-        """Set the cover position."""
+
+    # SET OPEN
+    async def async_open_cover(self, **kwargs: Any) -> None:
+        """Set position."""
+        self.position = 100
+        
+        """Open the cover."""
         url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self.roller_id}'
         body = {
             "data": [{
                 "key": "level",
-                "value": str(int(self.position))
+                "value": "0"
             }]
         }
         response = await junghome.http_patch_request(url, self._token, body)
         if response is None: print("failed to move on cover.")
 
-    # CLOSE
+
+    # SET CLOSE
     async def async_close_cover(self, **kwargs: Any) -> None:
-        """Close the cover."""
-        self.position  = 100
+        """Set position."""
+        self.position = 0
         
-        """Set the cover position."""
+        """Close the cover."""
         url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self.roller_id}'
         body = {
             "data": [{
                 "key": "level",
-                "value": str(int(self.position))
+                "value": "100"
             }]
         }
         response = await junghome.http_patch_request(url, self._token, body)
@@ -152,23 +153,25 @@ class WindowCover(CoverEntity):
 
     # SET POSITION
     async def async_set_cover_position(self, **kwargs: Any) -> None:
-        """Set the cover position."""
+        """Set position."""
         self.position  = int(kwargs[ATTR_POSITION])
+        
+        """ Change the cover position """
         url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self.roller_id}'
         body = {
             "data": [{
                 "key": "level",
-                "value": str(int(self.position))
+                "value": str(100-int(self.position))
             }]
         }
         response = await junghome.http_patch_request(url, self._token, body)
         if response is None: print("failed to move on cover.")
         
-        
-    # UPDATE
+    
+    # GET POSITION
     async def async_update(self) -> None:
         """
-        Fetch new state data for this cover.
+        Fetch new state for this cover.
         This is the only method that should fetch new data for Home Assistant.
         """
         url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self.roller_id}'
@@ -183,7 +186,7 @@ class WindowCover(CoverEntity):
             return None
         
         value_str = response['values'][0]['value']
-        self.position = int(value_str)
+        self.position = 100 - int(value_str)
 
 
 
