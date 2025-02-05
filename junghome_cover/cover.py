@@ -15,6 +15,7 @@ from homeassistant.components.cover import (
 import logging
 _LOGGER = logging.getLogger(__name__)
 
+
 #
 # Setup
 #
@@ -69,16 +70,13 @@ class WindowCover(CoverEntity):
     # INIT
     def __init__(self, device_id: str, state_id: str, name: str, hub: HubConfigEntry) -> None:
         self._device_id = device_id
-        self.roller_id = state_id
+        self._state_id = state_id
         self._ip = hub.ip
         self._token = hub.token
         self.name = name
-
-        # Initialize state variables
-        self.position = 50  # starting position (example)
-        self.moving = 0     # positive for opening, negative for closing
-
-        self._attr_unique_id = f"{self.roller_id}_cover"
+        self.position = 50
+        
+        self._attr_unique_id = f"{self._state_id}_cover"
         self._attr_name = self.name
         
         _LOGGER.debug(f"Initialized cover: {self.name} with ID {self._device_id}")
@@ -88,7 +86,7 @@ class WindowCover(CoverEntity):
     @property
     def device_info(self) -> DeviceInfo:
         info = {
-            "identifiers": {(DOMAIN, self.roller_id)},
+            "identifiers": {(DOMAIN, self._state_id)},
             "name": self.name,
             "model": "WindowCover",
             "manufacturer": MANUFACTURER,
@@ -123,7 +121,7 @@ class WindowCover(CoverEntity):
         self.position = 100
         
         """Open the cover."""
-        url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self.roller_id}'
+        url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self._state_id}'
         body = {
             "data": [{
                 "key": "level",
@@ -140,7 +138,7 @@ class WindowCover(CoverEntity):
         self.position = 0
         
         """Close the cover."""
-        url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self.roller_id}'
+        url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self._state_id}'
         body = {
             "data": [{
                 "key": "level",
@@ -157,7 +155,7 @@ class WindowCover(CoverEntity):
         self.position  = int(kwargs[ATTR_POSITION])
         
         """ Change the cover position """
-        url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self.roller_id}'
+        url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self._state_id}'
         body = {
             "data": [{
                 "key": "level",
@@ -174,7 +172,7 @@ class WindowCover(CoverEntity):
         Fetch new state for this cover.
         This is the only method that should fetch new data for Home Assistant.
         """
-        url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self.roller_id}'
+        url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self._state_id}'
         headers = {
             'accept': 'application/json',
             'token': self._token
