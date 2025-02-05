@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.helpers.entity import DeviceInfo
+from .const import DOMAIN, MANUFACTURER
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -31,7 +32,7 @@ async def async_setup_entry(
 
     # check devices 
     if devices is None:
-        _LOGGER.info("Failed to retrieve cover devices. API response was None.")
+        _LOGGER.info("Failed to retrieve light devices. API response was None.")
         hub.online = False
         return
     
@@ -106,6 +107,16 @@ class LightClass(LightEntity):
         # Initialize color mode
         self._attr_color_mode = ColorMode.ONOFF
 
+    # DEVICE INFO
+    @property
+    def device_info(self) -> DeviceInfo:
+        info = {
+            "identifiers": {(DOMAIN, self._device_id)},
+            "name": self._name,
+            "model": "Light",
+            "manufacturer": MANUFACTURER,
+        }
+        return info
 
     # GET ON/OFF         
     @property
