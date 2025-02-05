@@ -76,17 +76,15 @@ class WindowCover(CoverEntity):
         self.name = name
         self.position = 50
         
-        self._attr_unique_id = f"{self._state_id}_cover"
+        self._attr_unique_id = f"{self._device_id}"
         self._attr_name = self.name
-        
-        _LOGGER.debug(f"Initialized cover: {self.name} with ID {self._device_id}")
+
     
-    
-    # GET INFO
+    # DEVICE INFO
     @property
     def device_info(self) -> DeviceInfo:
         info = {
-            "identifiers": {(DOMAIN, self._state_id)},
+            "identifiers": {(DOMAIN, self._device_id)},
             "name": self.name,
             "model": "WindowCover",
             "manufacturer": MANUFACTURER,
@@ -108,7 +106,7 @@ class WindowCover(CoverEntity):
         return self.position
 
 
-    # GET CLOSED
+    # GET OPEN/CLOSED
     @property
     def is_closed(self) -> bool:
         """Return if the cover is closed, same as position 0."""

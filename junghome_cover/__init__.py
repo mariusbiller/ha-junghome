@@ -5,8 +5,8 @@ from homeassistant.const import Platform
 from . import hub
 
 # List of platforms to support. 
-# each should match .py file (e.g. <cover.py> and <sensor.py>)
-PLATFORMS = [Platform.COVER]
+# each should match .py file (e.g. <cover.py> and <light.py>)
+PLATFORMS = [Platform.LIGHT, Platform.COVER]
 type HubConfigEntry = ConfigEntry[hub.Hub]
 
 async def async_setup_entry(hass: HomeAssistant, entry: HubConfigEntry) -> bool:
