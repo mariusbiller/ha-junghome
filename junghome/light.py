@@ -1,44 +1,40 @@
 """Platform for light integration."""
 from __future__ import annotations
-
-import logging
-import voluptuous as vol
 from .junghome_client import JunghomeGateway as junghome
-
-
-# Import the device class from the component that you want to support
-import homeassistant.helpers.config_validation as cv
-from homeassistant.components.light import (ATTR_BRIGHTNESS, PLATFORM_SCHEMA, LightEntity, ColorMode)
-from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
+from homeassistant.components.light import (ATTR_BRIGHTNESS, LightEntity, ColorMode)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.helpers.entity import DeviceInfo
+from .const import DOMAIN, MANUFACTURER
+from . import HubConfigEntry
+import logging
 _LOGGER = logging.getLogger(__name__)
 
-# Validation of the user's configuration
-PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
-    vol.Required(CONF_HOST): cv.string,
-    vol.Optional(CONF_USERNAME, default='admin'): cv.string,
-    vol.Optional(CONF_PASSWORD): cv.string,
-})
 
-
-def setup_platform(
+#
+# Setup
+#
+async def async_setup_entry(
     hass: HomeAssistant,
-    config: ConfigType,
-    add_entities: AddEntitiesCallback,
-    discovery_info: DiscoveryInfoType | None = None
+    config_entry: HubConfigEntry,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the Light platform."""
-    # Assign configuration variables
-    host = config[CONF_HOST]
-    username = config[CONF_USERNAME]
-    password = config.get(CONF_PASSWORD)
+    
+    # The hub is loaded from entry runtime_data that was set by __init__.py
+    hub = config_entry.runtime_data
+    _LOGGER.info(f"Initialize {hub.ip} Light from hub")
+    
+    # Get JUNG HOME devices
+    devices = await junghome.request_devices(hub.ip, hub.token)
 
-    # get jung home devices
-    devices = junghome.request_devices(host, password)
-
+    # check devices 
+    if devices is None:
+        _LOGGER.info("Failed to retrieve light devices. API response was None.")
+        hub.online = False
+        return
+    
+    # add light devices
     lights = []
     for device in devices:
     
@@ -71,18 +67,21 @@ def setup_platform(
             "device_id": device["id"],
             "switch_id": switch_id,
             "brightness_id": brightness_id,
-            "ip": host,
-            "token": password
+            "ip": hub.ip,
+            "token": hub.token
         }
         lights.append(device_info)
 
-    add_entities(LightClass(light) for light in lights)
+    async_add_entities(LightClass(light) for light in lights)
 
 
     
-    
+#
+# LIGHT
+#    
 class LightClass(LightEntity):
 
+    # INIT
     def __init__(self, light) -> None:
         """Initialize a Light."""
         self._light = light
@@ -94,6 +93,9 @@ class LightClass(LightEntity):
         self._ip = light["ip"]
         self._switch = False
         self._brightness = 0
+        
+        self._attr_unique_id = f"{self._device_id}"
+        self._attr_name = self._name
 
         # Set supported color modes
         self._attr_supported_color_modes = {ColorMode.ONOFF}
@@ -104,30 +106,34 @@ class LightClass(LightEntity):
         self._attr_color_mode = ColorMode.ONOFF
 
 
+    # DEVICE INFO
     @property
-    def name(self) -> str:
-        """Return the display name of this light."""
-        return self._name
+    def device_info(self) -> DeviceInfo:
+        info = {
+            "identifiers": {(DOMAIN, self._device_id)},
+            "name": self._name,
+            "model": "Light",
+            "manufacturer": MANUFACTURER,
+        }
+        return info
 
-    @property
-    def unique_id(self) -> str | None:
-        return self._light["device_id"]
-        
+
+    # GET ON/OFF         
     @property
     def is_on(self) -> bool | None:
         """Return true if light is on."""
         return self._switch
         
+        
+    # GET BRIGHTNESS
     @property
     def brightness(self):
-        """Return the brightness of the light.
-
-        This method is optional. Removing it indicates to Home Assistant
-        that brightness is not supported for this light.
-        """
+        """Return the brightness of the light."""
         return self._brightness
 
-    def turn_on(self, **kwargs) -> None:
+
+    # SET ON
+    async def async_turn_on(self, **kwargs) -> None:
         """Turn the light on."""
         self._switch = True
         
@@ -142,7 +148,7 @@ class LightClass(LightEntity):
                             "value": str(int((self._brightness / 255) * 100))
                         }]
             }
-            response = junghome.http_patch_request(url, self._token, body)
+            response = await junghome.http_patch_request(url, self._token, body)
             if response is None: print("failed to turn on light.")
         else:
             """turn on by switching"""
@@ -154,10 +160,12 @@ class LightClass(LightEntity):
                             "value": "1"
                         }]
             }
-            response = junghome.http_patch_request(url, self._token, body)
+            response = await junghome.http_patch_request(url, self._token, body)
             if response is None: print("failed to turn off light.")
         
-    def turn_off(self, **kwargs) -> None:
+        
+    # SET OFF    
+    async def async_turn_off(self, **kwargs) -> None:
         """Turn the light off."""
         self._switch = False
         self._attr_color_mode = ColorMode.ONOFF
@@ -170,12 +178,12 @@ class LightClass(LightEntity):
                         "value": "0"
                     }]
         }
-        response = junghome.http_patch_request(url, self._token, body)
+        response = await junghome.http_patch_request(url, self._token, body)
         if response is None: print("failed to turn off light.")
 
 
-
-    def update(self) -> None:
+    # GET STATE
+    async def async_update(self) -> None:
         """Fetch new state data for this light.
         This is the only method that should fetch new data for Home Assistant.
         """
@@ -186,7 +194,7 @@ class LightClass(LightEntity):
             'token': self._token
         }
         
-        response = junghome.http_get_request(url, self._token)
+        response = await junghome.http_get_request(url, self._token)
         if response is None: 
             print("failed get state of light.")
             return None
