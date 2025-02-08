@@ -1,39 +1,42 @@
+import aiohttp
+import logging
 
-import requests
+# Set up logging for this module
+_LOGGER = logging.getLogger(__name__)
 
 class JunghomeGateway:
-
-    def request_devices(host: str, token: str):
+    @staticmethod
+    async def request_devices(host: str, token: str):
         """
         Requests a list of devices from the api-junghome using the specified host and token.
 
         Parameters:
-        host (str): hostename or ip address of the API host, excluding 'https://'.
+        host (str): hostename or IP address of the API host, excluding 'https://'.
         token (str): The authentication token for API access.
 
         Returns:
         list or None: A list of device dictionaries if the request is successful, None otherwise.
         """
-        
-        # create url
-        url = 'https://' + host + '/api/junghome/functions/'
-        
+        # Create URL
+        url = f"https://{host}/api/junghome/functions/"
+        _LOGGER.info(f"Requesting devices from {url}...")
+
         # Use the generic HTTP GET request function
-        devices = JunghomeGateway.http_get_request(url, token)
-        
+        devices = await JunghomeGateway.http_get_request(url, token)
+
         if devices is None:
-            print("failed to get jung home devices.")
+            _LOGGER.error("Failed to retrieve Jung Home devices.")
             return None
-        
+
+        _LOGGER.debug(f"Devices response: {devices}")
         return devices
-
-
 
     # ==================================================================================
     # HTTP HELPER FUNCTIONS
     # ==================================================================================
 
-    def http_get_request(url, token):
+    @staticmethod
+    async def http_get_request(url: str, token: str):
         """
         Sends an HTTP GET request to the specified URL with authorization provided by the token.
 
@@ -45,29 +48,27 @@ class JunghomeGateway:
             dict:   The JSON response from the server if the request is successful.
             None:   Returns None if the request fails or raises an exception.
         """
-        
-        # Disabling SSL verification
-        requests.packages.urllib3.disable_warnings()
-        
-        # create header
+        # Create headers
         headers = {
-            'accept': 'application/json',
-            'token': token
+            "accept": "application/json",
+            "token": token
         }
         
-        # send request
+        _LOGGER.debug(f"Sending GET request to {url} with headers {headers}...")
+
+        # Send request
         try:
-            response = requests.get(url, headers=headers, verify=False)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            print(f"failed to get data: {e}")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, headers=headers, ssl=False) as response:
+                    response.raise_for_status()
+                    _LOGGER.info(f"GET request to {url} succeeded.")
+                    return await response.json()
+        except aiohttp.ClientError as e:
+            _LOGGER.error(f"Failed to get data from {url}: {e}")
             return None
 
-
-
-
-    def http_patch_request(url, token, data):
+    @staticmethod
+    async def http_patch_request(url: str, token: str, data: dict):
         """
         Sends an HTTP PATCH request to the specified URL with the provided data and authorization token.
 
@@ -80,22 +81,22 @@ class JunghomeGateway:
             dict:   The JSON response from the server if the request is successful.
             None:   Returns None if the request encounters an error or raises an exception.
         """
-        
-        # Disabling SSL verification
-        requests.packages.urllib3.disable_warnings()
-        
-        # create header
+        # Create headers
         headers = {
-            'accept': 'application/json',
-            'Content-Type': 'application/json',
-            'token': token
+            "accept": "application/json",
+            "Content-Type": "application/json",
+            "token": token
         }
         
-        # send request
+        _LOGGER.debug(f"Sending PATCH request to {url} with headers {headers} and data {data}...")
+
+        # Send request
         try:
-            response = requests.patch(url, headers=headers, json=data, verify=False)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            print(f"failed to update data: {e}")
+            async with aiohttp.ClientSession() as session:
+                async with session.patch(url, headers=headers, json=data, ssl=False) as response:
+                    response.raise_for_status()
+                    _LOGGER.info(f"PATCH request to {url} succeeded.")
+                    return await response.json()
+        except aiohttp.ClientError as e:
+            _LOGGER.error(f"Failed to update data on {url}: {e}")
             return None

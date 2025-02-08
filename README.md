@@ -6,24 +6,19 @@ This is a bare minimum example integration showing how to integrate JUNG HOME de
 - Dimmable Light
 - Tuneable White Light (switching and brightness only)
 - Socket (displayed as Light)
+- Window Cover
 
 >**hint:**
 *Please note that the provided integration is a bare minimum example and may have limitations regarding its quality and functionality.*
 
 ## Installation
-Copy this folder to `<config_dir>/custom_components/junghome/`.
-Add the following entry in your `configuration.yaml`:
-
-```yaml
-light:
-  - platform: junghome
-    host: junghome.local
-    username: Home Assistant User
-    password:  <access token>
-```
+- Copy this folder to `<config_dir>/custom_components/junghome/`
+- Find out your JUNG HOME Gateway's ip address and make sure ist does not change 
+  e.g. by make it constant in the router's DHCP settings
+- get your access token by register at `https://junghome.local/api/junghome/swagger` 
+- Add this integragration to Home Assistant via the UI config flow 
 
 ## Support Me
-
 If you find my work helpful, you can support me by buying me a coffee! ☕
 
 [![Buy Me a Coffee](https://img.buymeacoffee.com/button-api/?username=mariusbiller&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff)](https://www.buymeacoffee.com/mariusbiller)

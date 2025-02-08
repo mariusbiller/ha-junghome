@@ -1,15 +1,21 @@
 {
   "domain": "junghome",
   "name": "JUNG HOME",
-  "codeowners": [
-    "@mariusbiller"
-  ],
+  "codeowners": ["@mariusbiller"],
+  "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/mariusbiller/ha-junghome",
   "homekit": {},
-  "iot_class": "local_polling",
-  "requirements": [],
-  "version": "0.1.0",
+  "iot_class": "local_push",
+  "requirements": [
+    "aiohttp>=3.8.0"
+  ],
   "ssdp": [],
-  "zeroconf": []
+  "version": "0.1.0",
+  "zeroconf": [],
+  "dhcp": [
+    {
+      "hostname": "junghome*"
+    }
+  ]
 }
