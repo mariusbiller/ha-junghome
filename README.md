@@ -1,6 +1,5 @@
 # ha-junghome
-This is a bare minimum example integration showing how to integrate JUNG HOME devices into Home Assistant.
-
+This is a minimum example integration showing how to integrate JUNG HOME devices into Home Assistant.
 The communication to JUNG HOME devices runs over local network via the JUNG HOME Gateway – no cloud required.
 
 ## Supported device types
@@ -14,21 +13,24 @@ The communication to JUNG HOME devices runs over local network via the JUNG HOME
 *Please note that the provided integration is a bare minimum example and may have limitations regarding its quality and functionality.*
 
 ## Prerequisites
-- JUNG HOME devices have already been installed and set up using the official JUNG HOME App.
-- A JUNG HOME Gateway is added, active, and in the same local network as your Home Assistant instance.
+- JUNG HOME devices have already been installed and set up using the official JUNG HOME App
+- A JUNG HOME Gateway is added, active, and in the same local network as your Home Assistant instance
 
 
 ## Installation
 ### Option 1: Manual Installation
-- Copy this folder to `<config_dir>/custom_components/junghome/`
+1. Copy this folder to `<config_dir>/custom_components/junghome/`
+2. Restart Home Assistant
 
 ### Option 2: Install via HACS
+>*If you have not installed HACS (Home Assistant Community Store) yet, follow the official guide: [HACS Installation Guide](https://hacs.xyz/docs/use/download/download/)*
+
 1. Open Home Assistant and go to **HACS > Integrations**.
-2. Click the three dots in the top-right corner and select **Custom repositories**.
-3. Add the URL of this GitHub repository: `https://github.com/mariusbiller/ha-junghome`.
-4. Select the category as "Integration".
-5. Search for "JUNG HOME" in HACS and install the integration.
-6. Restart Home Assistant.
+2. Click the three dots in the top-right corner and select **Custom repositories**
+3. Add the URL of this GitHub repository: `https://github.com/mariusbiller/ha-junghome`
+4. Select the category as "Integration"
+5. Search for "JUNG HOME" in HACS and install the integration
+6. Restart Home Assistant
 
 ## Setup
 - Find out your JUNG HOME Gateway's IP address and make sure it does not change (e.g. by making it constant in the router's DHCP settings).
