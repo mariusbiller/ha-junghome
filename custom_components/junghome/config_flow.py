@@ -5,28 +5,29 @@ from homeassistant import config_entries, exceptions
 from homeassistant.core import HomeAssistant
 from .const import DOMAIN  # pylint:disable=unused-import
 from .hub import Hub
+from .const import CONF_IP_ADDRESS, CONF_TOKEN
 import logging
 _LOGGER = logging.getLogger(__name__)
 
 
 DATA_SCHEMA = vol.Schema({
-    vol.Required("ip"): str,
-    vol.Required("token"): str,
+    vol.Required(CONF_IP_ADDRESS): str,
+    vol.Required(CONF_TOKEN): str,
 })
 
 
 async def validate_input(hass: HomeAssistant, data: dict) -> dict[str, Any]:
-    if len(data["ip"]) < 3:
+    if len(data[CONF_IP_ADDRESS]) < 3:
         raise InvalidIP
 
-    hub = Hub(hass, data["ip"], data["token"])
+    hub = Hub(hass, data[CONF_IP_ADDRESS], data[CONF_TOKEN])
     await hub.async_initialize()
     
     result = await hub.test_connection()
     if not result:
         raise CannotConnect
 
-    return {"title": data["ip"]}
+    return {"title": data[CONF_IP_ADDRESS]}
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -45,7 +46,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except CannotConnect:
                 errors["base"] = "cannot_connect"
             except InvalidIP:
-                errors["ip"] = "invalid_ip"
+                errors[CONF_IP_ADDRESS] = "invalid_ip"
             except Exception:
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"

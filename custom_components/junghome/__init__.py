@@ -1,21 +1,37 @@
 from __future__ import annotations
+import logging
+
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
 from homeassistant.const import Platform
-from . import hub
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryNotReady
+
+from .coordinator import JunghomeCoordinator
+from .const import DOMAIN
+
+_LOGGER = logging.getLogger(__name__)
 
 # List of platforms to support. 
 # each should match .py file (e.g. <cover.py> and <light.py>)
 PLATFORMS = [Platform.LIGHT, Platform.COVER]
-type HubConfigEntry = ConfigEntry[hub.Hub]
+JunghomeConfigEntry = ConfigEntry[JunghomeCoordinator]
 
-async def async_setup_entry(hass: HomeAssistant, entry: HubConfigEntry) -> bool:
-    # Store an instance of the "connecting" class that does the work of speaking
-    # with your actual devices.
-    entry.runtime_data = hub.Hub(hass, entry.data["ip"], entry.data["token"])
+async def async_setup_entry(hass: HomeAssistant, entry: JunghomeConfigEntry) -> bool:
+    """Set up Jung Home from a config entry."""
+    coordinator = JunghomeCoordinator(hass, entry)
+    
+    try:
+        # Test initial connection and raise ConfigEntryNotReady if it fails
+        await coordinator.async_config_entry_first_refresh()
+    except Exception as err:
+        _LOGGER.error("Failed to connect to Jung Home hub at %s: %s", 
+                     coordinator.ip, err)
+        raise ConfigEntryNotReady(f"Unable to connect to Jung Home hub at {coordinator.ip}") from err
 
-    # This creates each HA object for each platform your device requires.
-    # It's done by calling the `async_setup_entry` function in each platform module.
+    # Store coordinator in runtime_data
+    entry.runtime_data = coordinator
+
+    # Forward the setup to the platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 

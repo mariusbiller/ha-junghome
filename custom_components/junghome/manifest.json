@@ -17,5 +17,7 @@
     {
       "hostname": "junghome*"
     }
-  ]
+  ],
+  "loggers": ["custom_components.junghome"],
+  "integration_type": "hub"
 }

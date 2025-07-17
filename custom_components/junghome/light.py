@@ -1,14 +1,17 @@
 """Platform for light integration."""
 from __future__ import annotations
-from .junghome_client import JunghomeGateway as junghome
+import logging
+
 from homeassistant.components.light import (ATTR_BRIGHTNESS, LightEntity, ColorMode)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
 from .const import DOMAIN, MANUFACTURER
-from . import HubConfigEntry
-import logging
+from . import JunghomeConfigEntry
+from .junghome_client import JunghomeGateway
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -17,22 +20,21 @@ _LOGGER = logging.getLogger(__name__)
 #
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: HubConfigEntry,
+    config_entry: JunghomeConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
+    """Set up Jung Home lights from a config entry."""
     
-    # The hub is loaded from entry runtime_data that was set by __init__.py
-    hub = config_entry.runtime_data
-    _LOGGER.info(f"Initialize {hub.ip} Light from hub")
+    # The coordinator is loaded from entry runtime_data that was set by __init__.py
+    coordinator = config_entry.runtime_data
+    _LOGGER.info("Initialize Jung Home lights from coordinator")
     
-    # Get JUNG HOME devices
-    devices = await junghome.request_devices(hub.ip, hub.token)
-
-    # check devices 
-    if devices is None:
-        _LOGGER.info("Failed to retrieve light devices. API response was None.")
-        hub.online = False
+    # Get devices from coordinator data
+    if coordinator.data is None or "devices" not in coordinator.data:
+        _LOGGER.warning("No device data available from coordinator")
         return
+        
+    devices = coordinator.data["devices"]
     
     # add light devices
     lights = []
@@ -61,41 +63,32 @@ async def async_setup_entry(
                 brightness_id = datapoint.get("id")
                 break
         
-        # compose device info
-        device_info = {
-            "name": device["label"],
-            "device_id": device["id"],
-            "switch_id": switch_id,
-            "brightness_id": brightness_id,
-            "ip": hub.ip,
-            "token": hub.token
-        }
-        lights.append(device_info)
+        # Create light entity
+        lights.append(JunghomeLight(coordinator, device, switch_id, brightness_id))
 
-    async_add_entities(LightClass(light) for light in lights)
+    async_add_entities(lights)
 
 
     
 #
 # LIGHT
 #    
-class LightClass(LightEntity):
+class JunghomeLight(CoordinatorEntity, LightEntity):
+    """Jung Home light entity."""
 
-    # INIT
-    def __init__(self, light) -> None:
-        """Initialize a Light."""
-        self._light = light
-        self._name = light["name"]
-        self._device_id = light["device_id"]
-        self._switch_id = light["switch_id"]
-        self._brightness_id = light["brightness_id"]
-        self._token = light["token"]
-        self._ip = light["ip"]
+    def __init__(self, coordinator, device, switch_id, brightness_id) -> None:
+        """Initialize a Jung Home Light."""
+        super().__init__(coordinator)
+        
+        self._device = device
+        self._device_id = device["id"]
+        self._switch_id = switch_id
+        self._brightness_id = brightness_id
         self._switch = False
         self._brightness = 0
         
         self._attr_unique_id = f"{self._device_id}"
-        self._attr_name = self._name
+        self._attr_name = device["label"]
 
         # Set supported color modes
         self._attr_supported_color_modes = {ColorMode.ONOFF}
@@ -106,16 +99,15 @@ class LightClass(LightEntity):
         self._attr_color_mode = ColorMode.ONOFF
 
 
-    # DEVICE INFO
     @property
     def device_info(self) -> DeviceInfo:
-        info = {
-            "identifiers": {(DOMAIN, self._device_id)},
-            "name": self._name,
-            "model": "Light",
-            "manufacturer": MANUFACTURER,
-        }
-        return info
+        """Return device info."""
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._device_id)},
+            name=self._attr_name,
+            model="Light",
+            manufacturer=MANUFACTURER,
+        )
 
 
     # GET ON/OFF         
@@ -141,26 +133,26 @@ class LightClass(LightEntity):
             """turn on by setting brightness"""
             self._brightness  = int(kwargs.get(ATTR_BRIGHTNESS,255))
             self._attr_color_mode = ColorMode.BRIGHTNESS
-            url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self._brightness_id}'
+            url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._brightness_id}'
             body = {
                 "data": [{
                             "key": "brightness",
                             "value": str(int((self._brightness / 255) * 100))
                         }]
             }
-            response = await junghome.http_patch_request(url, self._token, body)
+            response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
             if response is None: print("failed to turn on light.")
         else:
             """turn on by switching"""
             self._attr_color_mode = ColorMode.ONOFF
-            url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self._switch_id}'
+            url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._switch_id}'
             body = {
                 "data": [{
                             "key": "switch",
                             "value": "1"
                         }]
             }
-            response = await junghome.http_patch_request(url, self._token, body)
+            response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
             if response is None: print("failed to turn off light.")
         
         
@@ -171,7 +163,7 @@ class LightClass(LightEntity):
         self._attr_color_mode = ColorMode.ONOFF
         self._brightness = 0
         
-        url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self._switch_id}'
+        url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._switch_id}'
         body = {
             "data": [{
                         "key": "switch",
@@ -188,13 +180,9 @@ class LightClass(LightEntity):
         This is the only method that should fetch new data for Home Assistant.
         """
         
-        url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self._switch_id}'
-        headers = {
-            'accept': 'application/json',
-            'token': self._token
-        }
+        url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._switch_id}'
         
-        response = await junghome.http_get_request(url, self._token)
+        response = await JunghomeGateway.http_get_request(url, self.coordinator.token)
         if response is None: 
             print("failed get state of light.")
             return None

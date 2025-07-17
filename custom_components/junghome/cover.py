@@ -1,18 +1,21 @@
 from __future__ import annotations
 from typing import Any
-import asyncio
-import random
+import logging
+
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from .junghome_client import JunghomeGateway as junghome
-from . import HubConfigEntry
-from .const import DOMAIN, MANUFACTURER
+from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.components.cover import (
     ATTR_POSITION,
     CoverEntityFeature,
     CoverEntity,
 )
-import logging
+
+from .const import DOMAIN, MANUFACTURER
+from . import JunghomeConfigEntry
+from .junghome_client import JunghomeGateway
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -21,22 +24,21 @@ _LOGGER = logging.getLogger(__name__)
 #
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: HubConfigEntry,
+    config_entry: JunghomeConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
+    """Set up Jung Home covers from a config entry."""
    
-    # The hub is loaded from entry runtime_data that was set by __init__.py
-    hub = config_entry.runtime_data
-    _LOGGER.info(f"Initialize {hub.ip} WindowCovers from hub")
+    # The coordinator is loaded from entry runtime_data that was set by __init__.py
+    coordinator = config_entry.runtime_data
+    _LOGGER.info("Initialize Jung Home covers from coordinator")
     
-    # Get JUNG HOME devices
-    devices = await junghome.request_devices(hub.ip, hub.token)
-
-    # check devices 
-    if devices is None:
-        _LOGGER.info("Failed to retrieve cover devices. API response was None.")
-        hub.online = False
+    # Get devices from coordinator data
+    if coordinator.data is None or "devices" not in coordinator.data:
+        _LOGGER.warning("No device data available from coordinator")
         return
+        
+    devices = coordinator.data["devices"]
 
     # add cover devices
     covers = []
@@ -53,7 +55,7 @@ async def async_setup_entry(
                 break
         
         # Create the cover entity
-        covers.append(WindowCover(device.get("id"), state_id, device.get("label"), hub))
+        covers.append(JunghomeCover(coordinator, device, state_id))
     
     async_add_entities(covers)
 
@@ -61,42 +63,37 @@ async def async_setup_entry(
 #
 # WINDOW COVER
 #
-class WindowCover(CoverEntity):
-    should_poll = True
-    supported_features = (
+class JunghomeCover(CoordinatorEntity, CoverEntity):
+    """Jung Home cover entity."""
+    
+    _attr_supported_features = (
         CoverEntityFeature.SET_POSITION | CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE
     )
 
-    # INIT
-    def __init__(self, device_id: str, state_id: str, name: str, hub: HubConfigEntry) -> None:
-        self._device_id = device_id
+    def __init__(self, coordinator, device, state_id: str) -> None:
+        """Initialize a Jung Home Cover."""
+        super().__init__(coordinator)
+        
+        self._device = device
+        self._device_id = device["id"]
         self._state_id = state_id
-        self._ip = hub.ip
-        self._token = hub.token
-        self.name = name
         self.position = 50
         
         self._attr_unique_id = f"{self._device_id}"
-        self._attr_name = self.name
+        self._attr_name = device["label"]
 
     
-    # DEVICE INFO
     @property
     def device_info(self) -> DeviceInfo:
-        info = {
-            "identifiers": {(DOMAIN, self._device_id)},
-            "name": self.name,
-            "model": "WindowCover",
-            "manufacturer": MANUFACTURER,
-        }
-        return info
+        """Return device info."""
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._device_id)},
+            name=self._attr_name,
+            model="WindowCover",
+            manufacturer=MANUFACTURER,
+        )
 
 
-    # GET ONLINE
-    @property
-    def available(self) -> bool:
-        online = True # fake always online state
-        return online
 
 
     # GET POSITION
@@ -119,14 +116,14 @@ class WindowCover(CoverEntity):
         self.position = 100
         
         """Open the cover."""
-        url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self._state_id}'
+        url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._state_id}'
         body = {
             "data": [{
                 "key": "level",
                 "value": "0"
             }]
         }
-        response = await junghome.http_patch_request(url, self._token, body)
+        response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
         if response is None: print("failed to move on cover.")
 
 
@@ -136,14 +133,14 @@ class WindowCover(CoverEntity):
         self.position = 0
         
         """Close the cover."""
-        url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self._state_id}'
+        url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._state_id}'
         body = {
             "data": [{
                 "key": "level",
                 "value": "100"
             }]
         }
-        response = await junghome.http_patch_request(url, self._token, body)
+        response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
         if response is None: print("failed to move on cover.")
 
 
@@ -153,14 +150,14 @@ class WindowCover(CoverEntity):
         self.position  = int(kwargs[ATTR_POSITION])
         
         """ Change the cover position """
-        url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self._state_id}'
+        url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._state_id}'
         body = {
             "data": [{
                 "key": "level",
                 "value": str(100-int(self.position))
             }]
         }
-        response = await junghome.http_patch_request(url, self._token, body)
+        response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
         if response is None: print("failed to move on cover.")
         
     
@@ -170,13 +167,9 @@ class WindowCover(CoverEntity):
         Fetch new state for this cover.
         This is the only method that should fetch new data for Home Assistant.
         """
-        url = f'https://{self._ip}/api/junghome/functions/{self._device_id}/datapoints/{self._state_id}'
-        headers = {
-            'accept': 'application/json',
-            'token': self._token
-        }
+        url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._state_id}'
         
-        response = await junghome.http_get_request(url, self._token)
+        response = await JunghomeGateway.http_get_request(url, self.coordinator.token)
         if response is None: 
             print("failed get state of cover.")
             return None
