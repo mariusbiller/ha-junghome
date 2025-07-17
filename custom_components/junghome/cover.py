@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Any
 import logging
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -77,11 +77,15 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
         self._device = device
         self._device_id = device["id"]
         self._state_id = state_id
-        self.position = 50
         
         self._attr_unique_id = f"{self._device_id}"
         self._attr_name = device["label"]
 
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        self._device = self.coordinator.get_device_by_id(self._device_id)
+        self.async_write_ha_state()
     
     @property
     def device_info(self) -> DeviceInfo:
@@ -95,25 +99,23 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
 
 
 
-
     # GET POSITION
-    @property
+    @property 
     def current_cover_position(self):
         """Return the current position of the cover."""
-        return self.position
+        if self._device:
+            return self._device.get("current_position", 50)
+        return 50
 
-
-    # GET OPEN/CLOSED
     @property
     def is_closed(self) -> bool:
         """Return if the cover is closed, same as position 0."""
-        return self.position == 0
+        return self.current_cover_position == 0
         
 
     # SET OPEN
     async def async_open_cover(self, **kwargs: Any) -> None:
-        """Set position."""
-        self.position = 100
+        """Open the cover."""
         
         """Open the cover."""
         url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._state_id}'
@@ -129,8 +131,7 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
 
     # SET CLOSE
     async def async_close_cover(self, **kwargs: Any) -> None:
-        """Set position."""
-        self.position = 0
+        """Close the cover."""
         
         """Close the cover."""
         url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._state_id}'
@@ -146,8 +147,7 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
 
     # SET POSITION
     async def async_set_cover_position(self, **kwargs: Any) -> None:
-        """Set position."""
-        self.position  = int(kwargs[ATTR_POSITION])
+        """Set cover position."""
         
         """ Change the cover position """
         url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._state_id}'
@@ -159,23 +159,6 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
         }
         response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
         if response is None: print("failed to move on cover.")
-        
-    
-    # GET POSITION
-    async def async_update(self) -> None:
-        """
-        Fetch new state for this cover.
-        This is the only method that should fetch new data for Home Assistant.
-        """
-        url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._state_id}'
-        
-        response = await JunghomeGateway.http_get_request(url, self.coordinator.token)
-        if response is None: 
-            print("failed get state of cover.")
-            return None
-        
-        value_str = response['values'][0]['value']
-        self.position = 100 - int(value_str)
 
 
 

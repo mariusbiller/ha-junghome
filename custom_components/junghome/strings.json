@@ -6,11 +6,13 @@
         "description": "Enter your Jung Home hub connection details",
         "data": {
           "ip": "Hub IP Address",
-          "token": "Authentication Token"
+          "token": "Authentication Token",
+          "polling_interval": "Polling Interval (seconds)"
         },
         "data_description": {
           "ip": "IP address or hostname of your Jung Home hub/gateway",
-          "token": "API authentication token for accessing the Jung Home system"
+          "token": "API authentication token for accessing the Jung Home system",
+          "polling_interval": "How often to check for device state changes (5-300 seconds, default: 15)"
         }
       }
     },
@@ -21,6 +23,20 @@
     },
     "abort": {
       "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure Jung Home Options",
+        "description": "Adjust integration settings",
+        "data": {
+          "polling_interval": "Polling Interval (seconds)"
+        },
+        "data_description": {
+          "polling_interval": "How often to check for device state changes (5-300 seconds)"
+        }
+      }
     }
   }
 }

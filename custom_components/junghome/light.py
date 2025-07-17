@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from homeassistant.components.light import (ATTR_BRIGHTNESS, LightEntity, ColorMode)
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -98,6 +98,16 @@ class JunghomeLight(CoordinatorEntity, LightEntity):
         # Initialize color mode
         self._attr_color_mode = ColorMode.ONOFF
 
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        updated_device = self.coordinator.get_device_by_id(self._device_id)
+        if updated_device:
+            self._device = updated_device
+            # Update local state from coordinator data
+            self._switch = updated_device.get("is_on", self._switch)
+            self._brightness = updated_device.get("brightness", self._brightness)
+        self.async_write_ha_state()
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -170,28 +180,9 @@ class JunghomeLight(CoordinatorEntity, LightEntity):
                         "value": "0"
                     }]
         }
-        response = await junghome.http_patch_request(url, self._token, body)
+        response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
         if response is None: print("failed to turn off light.")
 
 
-    # GET STATE
-    async def async_update(self) -> None:
-        """Fetch new state data for this light.
-        This is the only method that should fetch new data for Home Assistant.
-        """
-        
-        url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._switch_id}'
-        
-        response = await JunghomeGateway.http_get_request(url, self.coordinator.token)
-        if response is None: 
-            print("failed get state of light.")
-            return None
-        
-
-        switch_value_str = response['values'][0]['value']
-        switch_value = bool(int(switch_value_str))
-        
-        self._switch = switch_value
-        self._brightness = self._brightness
 
 

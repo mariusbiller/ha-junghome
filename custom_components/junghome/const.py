@@ -3,3 +3,6 @@ MANUFACTURER = "Albrecht JUNG"
 
 CONF_IP_ADDRESS = "ip"
 CONF_TOKEN = "token"
+CONF_POLLING_INTERVAL = "polling_interval"
+
+DEFAULT_POLLING_INTERVAL = 15
