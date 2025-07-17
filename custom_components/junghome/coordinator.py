@@ -4,7 +4,7 @@ import logging
 from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_IP_ADDRESS, CONF_TOKEN
+from .const import CONF_IP_ADDRESS, CONF_TOKEN
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -36,7 +36,7 @@ class JunghomeCoordinator(DataUpdateCoordinator):
             # Test basic connectivity first
             devices = await asyncio.wait_for(
                 JunghomeGateway.request_devices(self.ip, self.token),
-                timeout=10.0
+                timeout=30.0
             )
             
             if devices is None:
@@ -62,7 +62,7 @@ class JunghomeCoordinator(DataUpdateCoordinator):
         try:
             devices = await asyncio.wait_for(
                 JunghomeGateway.request_devices(self.ip, self.token),
-                timeout=10.0
+                timeout=30.0
             )
             return devices is not None
         except Exception as err:
