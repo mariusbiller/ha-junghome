@@ -36,7 +36,7 @@ class Hub:
             # Test actual connectivity with a timeout
             devices = await asyncio.wait_for(
                 JunghomeGateway.request_devices(self.ip, self.token),
-                timeout=10.0
+                timeout=30.0
             )
             
             if devices is None:
