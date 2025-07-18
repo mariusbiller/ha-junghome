@@ -77,6 +77,7 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
         self._device = device
         self._device_id = device["id"]
         self._state_id = state_id
+        self.position = 50  # Default position
         
         self._attr_unique_id = f"{self._device_id}"
         self._attr_name = device["label"]
@@ -84,7 +85,11 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        self._device = self.coordinator.get_device_by_id(self._device_id)
+        updated_device = self.coordinator.get_device_by_id(self._device_id)
+        if updated_device:
+            self._device = updated_device
+            # Update local position from coordinator data
+            self.position = updated_device.get("current_position", self.position)
         self.async_write_ha_state()
     
     @property
@@ -103,9 +108,7 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
     @property 
     def current_cover_position(self):
         """Return the current position of the cover."""
-        if self._device:
-            return self._device.get("current_position", 50)
-        return 50
+        return self.position
 
     @property
     def is_closed(self) -> bool:
@@ -116,8 +119,7 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
     # SET OPEN
     async def async_open_cover(self, **kwargs: Any) -> None:
         """Open the cover."""
-        
-        """Open the cover."""
+        self.position = 100  # Update local position immediately
         url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._state_id}'
         body = {
             "data": [{
@@ -132,8 +134,7 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
     # SET CLOSE
     async def async_close_cover(self, **kwargs: Any) -> None:
         """Close the cover."""
-        
-        """Close the cover."""
+        self.position = 0  # Update local position immediately
         url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._state_id}'
         body = {
             "data": [{
@@ -148,8 +149,7 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
     # SET POSITION
     async def async_set_cover_position(self, **kwargs: Any) -> None:
         """Set cover position."""
-        
-        """ Change the cover position """
+        self.position = int(kwargs[ATTR_POSITION])  # Update local position immediately
         url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._state_id}'
         body = {
             "data": [{
