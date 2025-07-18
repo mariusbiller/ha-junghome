@@ -80,12 +80,9 @@ class JunghomeLight(CoordinatorEntity, LightEntity):
         """Initialize a Jung Home Light."""
         super().__init__(coordinator)
         
-        self._device = device
         self._device_id = device["id"]
         self._switch_id = switch_id
         self._brightness_id = brightness_id
-        self._switch = False
-        self._brightness = 0
         
         self._attr_unique_id = f"{self._device_id}"
         self._attr_name = device["label"]
@@ -101,12 +98,6 @@ class JunghomeLight(CoordinatorEntity, LightEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        updated_device = self.coordinator.get_device_by_id(self._device_id)
-        if updated_device:
-            self._device = updated_device
-            # Update local state from coordinator data
-            self._switch = updated_device.get("is_on", self._switch)
-            self._brightness = updated_device.get("brightness", self._brightness)
         self.async_write_ha_state()
 
     @property
@@ -124,34 +115,39 @@ class JunghomeLight(CoordinatorEntity, LightEntity):
     @property
     def is_on(self) -> bool | None:
         """Return true if light is on."""
-        return self._switch
+        device = self.coordinator.get_device_by_id(self._device_id)
+        if device:
+            return device.get("is_on", False)
+        return False
         
         
     # GET BRIGHTNESS
     @property
     def brightness(self):
         """Return the brightness of the light."""
-        return self._brightness
+        device = self.coordinator.get_device_by_id(self._device_id)
+        if device:
+            return device.get("brightness", 0)
+        return 0
 
 
     # SET ON
     async def async_turn_on(self, **kwargs) -> None:
         """Turn the light on."""
-        self._switch = True
-        
         if ATTR_BRIGHTNESS in kwargs:
             """turn on by setting brightness"""
-            self._brightness  = int(kwargs.get(ATTR_BRIGHTNESS,255))
+            brightness = int(kwargs.get(ATTR_BRIGHTNESS, 255))
             self._attr_color_mode = ColorMode.BRIGHTNESS
             url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._brightness_id}'
             body = {
                 "data": [{
                             "key": "brightness",
-                            "value": str(int((self._brightness / 255) * 100))
+                            "value": str(int((brightness / 255) * 100))
                         }]
             }
             response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
-            if response is None: print("failed to turn on light.")
+            if response is None: 
+                _LOGGER.error("Failed to set brightness for light %s", self._device_id)
         else:
             """turn on by switching"""
             self._attr_color_mode = ColorMode.ONOFF
@@ -163,15 +159,14 @@ class JunghomeLight(CoordinatorEntity, LightEntity):
                         }]
             }
             response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
-            if response is None: print("failed to turn off light.")
+            if response is None: 
+                _LOGGER.error("Failed to turn on light %s", self._device_id)
         
         
     # SET OFF    
     async def async_turn_off(self, **kwargs) -> None:
         """Turn the light off."""
-        self._switch = False
         self._attr_color_mode = ColorMode.ONOFF
-        self._brightness = 0
         
         url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._switch_id}'
         body = {
@@ -181,7 +176,8 @@ class JunghomeLight(CoordinatorEntity, LightEntity):
                     }]
         }
         response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
-        if response is None: print("failed to turn off light.")
+        if response is None: 
+            _LOGGER.error("Failed to turn off light %s", self._device_id)
 
 
 

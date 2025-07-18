@@ -13,7 +13,7 @@ _LOGGER = logging.getLogger(__name__)
 
 # List of platforms to support. 
 # each should match .py file (e.g. <cover.py> and <light.py>)
-PLATFORMS = [Platform.LIGHT, Platform.COVER]
+PLATFORMS = [Platform.LIGHT, Platform.COVER, Platform.SENSOR, Platform.BINARY_SENSOR]
 JunghomeConfigEntry = ConfigEntry[JunghomeCoordinator]
 
 async def async_setup_entry(hass: HomeAssistant, entry: JunghomeConfigEntry) -> bool:
@@ -21,6 +21,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: JunghomeConfigEntry) -> 
     coordinator = JunghomeCoordinator(hass, entry)
     
     try:
+        # Set up WebSocket connection
+        await coordinator.async_setup()
+        
         # Test initial connection and raise ConfigEntryNotReady if it fails
         await coordinator.async_config_entry_first_refresh()
     except Exception as err:
@@ -40,5 +43,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # This is called when an entry/configured device is to be removed. The class
     # needs to unload itself, and remove callbacks. See the classes for further
     # details
+    coordinator = entry.runtime_data
+    if coordinator:
+        await coordinator.async_shutdown()
+        
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     return unload_ok

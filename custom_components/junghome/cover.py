@@ -74,10 +74,8 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
         """Initialize a Jung Home Cover."""
         super().__init__(coordinator)
         
-        self._device = device
         self._device_id = device["id"]
         self._state_id = state_id
-        self.position = 50  # Default position
         
         self._attr_unique_id = f"{self._device_id}"
         self._attr_name = device["label"]
@@ -85,11 +83,6 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        updated_device = self.coordinator.get_device_by_id(self._device_id)
-        if updated_device:
-            self._device = updated_device
-            # Update local position from coordinator data
-            self.position = updated_device.get("current_position", self.position)
         self.async_write_ha_state()
     
     @property
@@ -108,18 +101,35 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
     @property 
     def current_cover_position(self):
         """Return the current position of the cover."""
-        return self.position
+        device = self.coordinator.get_device_by_id(self._device_id)
+        if device:
+            return device.get("current_position", 50)
+        return 50
 
     @property
     def is_closed(self) -> bool:
         """Return if the cover is closed, same as position 0."""
         return self.current_cover_position == 0
-        
+
+    @property
+    def is_opening(self) -> bool:
+        """Return if the cover is opening."""
+        device = self.coordinator.get_device_by_id(self._device_id)
+        if device:
+            return device.get("level_move", 0) == -1
+        return False
+
+    @property
+    def is_closing(self) -> bool:
+        """Return if the cover is closing."""
+        device = self.coordinator.get_device_by_id(self._device_id)
+        if device:
+            return device.get("level_move", 0) == 1
+        return False
 
     # SET OPEN
     async def async_open_cover(self, **kwargs: Any) -> None:
         """Open the cover."""
-        self.position = 100  # Update local position immediately
         url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._state_id}'
         body = {
             "data": [{
@@ -128,13 +138,13 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
             }]
         }
         response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
-        if response is None: print("failed to move on cover.")
+        if response is None: 
+            _LOGGER.error("Failed to open cover %s", self._device_id)
 
 
     # SET CLOSE
     async def async_close_cover(self, **kwargs: Any) -> None:
         """Close the cover."""
-        self.position = 0  # Update local position immediately
         url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._state_id}'
         body = {
             "data": [{
@@ -143,22 +153,24 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
             }]
         }
         response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
-        if response is None: print("failed to move on cover.")
+        if response is None: 
+            _LOGGER.error("Failed to close cover %s", self._device_id)
 
 
     # SET POSITION
     async def async_set_cover_position(self, **kwargs: Any) -> None:
         """Set cover position."""
-        self.position = int(kwargs[ATTR_POSITION])  # Update local position immediately
+        position = int(kwargs[ATTR_POSITION])
         url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._state_id}'
         body = {
             "data": [{
                 "key": "level",
-                "value": str(100-int(self.position))
+                "value": str(100-position)
             }]
         }
         response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
-        if response is None: print("failed to move on cover.")
+        if response is None: 
+            _LOGGER.error("Failed to set cover position %s", self._device_id)
 
 
 

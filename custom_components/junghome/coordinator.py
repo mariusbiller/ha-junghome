@@ -4,7 +4,7 @@ import logging
 from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
-from .const import CONF_IP_ADDRESS, CONF_TOKEN, CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL
+from .const import CONF_IP_ADDRESS, CONF_TOKEN
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -21,95 +21,176 @@ class JunghomeCoordinator(DataUpdateCoordinator):
         self.entry = entry
         self.ip = entry.data[CONF_IP_ADDRESS]
         self.token = entry.data[CONF_TOKEN]
-        self._devices = None
-
-        # Get polling interval from config entry data or options
-        polling_interval = entry.options.get(
-            CONF_POLLING_INTERVAL,
-            entry.data.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL)
-        )
+        self._gateway = JunghomeGateway(self.ip, self.token)
+        self._functions = {}
+        self._groups = {}
+        self._scenes = {}
 
         super().__init__(
             hass,
             _LOGGER,
             name="Jung Home",
-            update_interval=timedelta(seconds=polling_interval),
+            update_interval=None,  # No polling, using WebSocket
         )
 
     async def _async_update_data(self) -> dict:
-        """Fetch devices and their current states from Jung Home API."""
-        try:
-            # Get device list
-            devices = await asyncio.wait_for(
-                JunghomeGateway.request_devices(self.ip, self.token),
-                timeout=30.0
-            )
+        """Return current data from WebSocket connection."""
+        if not self._gateway.is_connected:
+            raise UpdateFailed("WebSocket not connected")
             
-            if devices is None:
-                raise UpdateFailed("Failed to get devices from Jung Home API")
+        # Convert functions to devices format for compatibility
+        devices = []
+        for func_id, func_data in self._functions.items():
+            device = self._convert_function_to_device(func_data)
+            devices.append(device)
             
-            # Fetch current state for each device
-            for device in devices:
-                await self._fetch_device_state(device)
-            
-            self._devices = devices
-            return {"devices": devices}
-            
-        except asyncio.TimeoutError as err:
-            raise UpdateFailed(f"Timeout connecting to Jung Home hub at {self.ip}") from err
-        except Exception as err:
-            if "401" in str(err) or "Unauthorized" in str(err):
-                raise ConfigEntryAuthFailed(f"Authentication failed: {err}") from err
-            raise UpdateFailed(f"Error communicating with Jung Home API: {err}") from err
+        return {
+            "devices": devices,
+            "functions": self._functions,
+            "groups": self._groups,
+            "scenes": self._scenes
+        }
 
-    async def _fetch_device_state(self, device: dict) -> None:
-        """Fetch current state for a single device."""
-        device_id = device["id"]
-        device_type = device["type"]
+    async def async_setup(self) -> None:
+        """Set up the coordinator and start WebSocket connection."""
+        # Start WebSocket connection
+        await self._gateway.connect_websocket(self._handle_websocket_data)
         
-        try:
-            # Handle covers (Position/PositionAndAngle)
-            if device_type in ["Position", "PositionAndAngle"]:
-                level_datapoint = self._find_datapoint(device, "level")
-                if level_datapoint:
-                    state_data = await self._get_datapoint_state(device_id, level_datapoint["id"])
-                    if state_data and "values" in state_data and state_data["values"]:
-                        level_value = int(state_data["values"][0]["value"])
-                        device["current_position"] = 100 - level_value  # Jung Home uses inverted scale
-                    else:
-                        device["current_position"] = 50  # Default fallback
+        # Wait a moment for initial WebSocket data
+        await asyncio.sleep(2)
+        
+        # If no WebSocket data received, fall back to HTTP for initial setup
+        if not self._functions:
+            _LOGGER.info("No initial WebSocket data, falling back to HTTP fetch")
+            try:
+                devices = await asyncio.wait_for(
+                    JunghomeGateway.request_devices(self.ip, self.token),
+                    timeout=30.0
+                )
+                if devices:
+                    for device in devices:
+                        self._functions[device["id"]] = device
+                    _LOGGER.info("Initial data loaded via HTTP: %d devices", len(devices))
+            except Exception as err:
+                _LOGGER.warning("Failed to get initial device data via HTTP: %s", err)
+                raise
+
+    async def async_shutdown(self) -> None:
+        """Shutdown the coordinator and disconnect WebSocket."""
+        await self._gateway.disconnect_websocket()
+
+    async def _handle_websocket_data(self, data_type: str, data: dict) -> None:
+        """Handle incoming WebSocket data."""
+        if data_type == "functions":
+            self._functions = data
+            self.async_set_updated_data(await self._async_update_data())
+            
+        elif data_type == "groups":
+            self._groups = data
+            
+        elif data_type == "scenes":
+            self._scenes = data
+            
+        elif data_type == "datapoint":
+            await self._handle_datapoint_update(data)
+
+    async def _handle_datapoint_update(self, datapoint_data: dict) -> None:
+        """Handle real-time datapoint updates."""
+        datapoint_id = datapoint_data.get("id")
+        datapoint_type = datapoint_data.get("type")
+        values = datapoint_data.get("values", [])
+        
+        # Find the function that contains this datapoint
+        for func_id, func_data in self._functions.items():
+            for dp in func_data.get("datapoints", []):
+                if dp.get("id") == datapoint_id:
+                    # Update the datapoint values
+                    dp["values"] = values
+                    
+                    # Update device state based on datapoint type
+                    self._update_device_state_from_datapoint(func_data, datapoint_type, values)
+                    
+                    # Trigger update to entities
+                    self.async_set_updated_data(await self._async_update_data())
+                    return
+
+    def _update_device_state_from_datapoint(self, device: dict, datapoint_type: str, values: list) -> None:
+        """Update device state based on datapoint values."""
+        if not values:
+            return
+            
+        device_type = device.get("type")
+        
+        if datapoint_type == "level" and device_type in ["Position", "PositionAndAngle"]:
+            # Process all values in the level datapoint (level and level_move)
+            for value_item in values:
+                key = value_item.get("key")
+                value = value_item.get("value")
+                if value is None:
+                    continue
+                    
+                if key == "level":
+                    level_value = int(value)
+                    device["current_position"] = 100 - level_value  # Jung Home uses inverted scale
+                elif key == "level_move":
+                    # Store movement state for is_opening/is_closing properties
+                    device["level_move"] = int(value)
+            
+        elif datapoint_type == "switch" and device_type in ["OnOff", "DimmerLight", "ColorLight", "Socket"]:
+            value = values[0].get("value") if values else None
+            if value is not None:
+                device["is_on"] = bool(int(value))
+            
+        elif datapoint_type == "brightness" and device_type in ["DimmerLight", "ColorLight"]:
+            value = values[0].get("value") if values else None
+            if value is not None:
+                brightness_value = int(value)
+                device["brightness"] = int((brightness_value / 100) * 255)  # Convert to HA scale
+
+    def _convert_function_to_device(self, func_data: dict) -> dict:
+        """Convert function data to device format for compatibility."""
+        device = func_data.copy()
+        device_type = device.get("type")
+        
+        # Set default states based on current datapoint values
+        if device_type in ["Position", "PositionAndAngle"]:
+            level_datapoint = self._find_datapoint(device, "level")
+            if level_datapoint and level_datapoint.get("values"):
+                # Process all values in level datapoint
+                for value_item in level_datapoint["values"]:
+                    key = value_item.get("key")
+                    value = value_item.get("value", 0)
+                    
+                    if key == "level":
+                        device["current_position"] = 100 - int(value)
+                    elif key == "level_move":
+                        device["level_move"] = int(value)
                         
-            # Handle lights (OnOff/DimmerLight/ColorLight/Socket)
-            elif device_type in ["OnOff", "DimmerLight", "ColorLight", "Socket"]:
-                switch_datapoint = self._find_datapoint(device, "switch")
-                if switch_datapoint:
-                    state_data = await self._get_datapoint_state(device_id, switch_datapoint["id"])
-                    if state_data and "values" in state_data and state_data["values"]:
-                        switch_value = bool(int(state_data["values"][0]["value"]))
-                        device["is_on"] = switch_value
-                    else:
-                        device["is_on"] = False  # Default fallback
-                        
-                # Also get brightness for dimmable lights
-                if device_type in ["DimmerLight", "ColorLight"]:
-                    brightness_datapoint = self._find_datapoint(device, "brightness")
-                    if brightness_datapoint:
-                        state_data = await self._get_datapoint_state(device_id, brightness_datapoint["id"])
-                        if state_data and "values" in state_data and state_data["values"]:
-                            brightness_value = int(state_data["values"][0]["value"])
-                            device["brightness"] = int((brightness_value / 100) * 255)  # Convert to HA scale
-                        else:
-                            device["brightness"] = 255 if device.get("is_on") else 0
-                            
-        except Exception as err:
-            _LOGGER.warning("Failed to fetch state for device %s: %s", device_id, err)
-            # Set defaults on error
-            if device_type in ["Position", "PositionAndAngle"]:
+                # Set defaults if not found
+                if "current_position" not in device:
+                    device["current_position"] = 50
+                if "level_move" not in device:
+                    device["level_move"] = 0
+            else:
                 device["current_position"] = 50
-            elif device_type in ["OnOff", "DimmerLight", "ColorLight", "Socket"]:
+                device["level_move"] = 0
+                
+        elif device_type in ["OnOff", "DimmerLight", "ColorLight", "Socket"]:
+            switch_datapoint = self._find_datapoint(device, "switch")
+            if switch_datapoint and switch_datapoint.get("values"):
+                device["is_on"] = bool(int(switch_datapoint["values"][0].get("value", 0)))
+            else:
                 device["is_on"] = False
-                if device_type in ["DimmerLight", "ColorLight"]:
-                    device["brightness"] = 0
+                
+            if device_type in ["DimmerLight", "ColorLight"]:
+                brightness_datapoint = self._find_datapoint(device, "brightness")
+                if brightness_datapoint and brightness_datapoint.get("values"):
+                    brightness_value = int(brightness_datapoint["values"][0].get("value", 0))
+                    device["brightness"] = int((brightness_value / 100) * 255)
+                else:
+                    device["brightness"] = 255 if device.get("is_on") else 0
+                    
+        return device
 
     def _find_datapoint(self, device: dict, datapoint_type: str) -> dict | None:
         """Find a datapoint of specific type in device."""
@@ -118,22 +199,27 @@ class JunghomeCoordinator(DataUpdateCoordinator):
                 return datapoint
         return None
 
-    async def _get_datapoint_state(self, device_id: str, datapoint_id: str) -> dict | None:
-        """Get current state of a specific datapoint."""
-        url = f'https://{self.ip}/api/junghome/functions/{device_id}/datapoints/{datapoint_id}'
-        try:
-            return await asyncio.wait_for(
-                JunghomeGateway.http_get_request(url, self.token),
-                timeout=10.0
-            )
-        except asyncio.TimeoutError:
-            _LOGGER.warning("Timeout getting state for datapoint %s", datapoint_id)
-            return None
-
     @property
     def devices(self) -> list | None:
         """Return the devices data."""
-        return self._devices
+        if self.data and "devices" in self.data:
+            return self.data["devices"]
+        return None
+
+    @property
+    def functions(self) -> dict:
+        """Return the functions data."""
+        return self._functions
+
+    @property  
+    def groups(self) -> dict:
+        """Return the groups data."""
+        return self._groups
+
+    @property
+    def scenes(self) -> dict:
+        """Return the scenes data."""
+        return self._scenes
 
     def get_device_by_id(self, device_id: str) -> dict | None:
         """Get device data by device ID."""
@@ -146,6 +232,10 @@ class JunghomeCoordinator(DataUpdateCoordinator):
     async def test_connection(self) -> bool:
         """Test connection to the Jung Home hub."""
         try:
+            if self._gateway.is_connected:
+                return True
+            
+            # Fallback to HTTP test if WebSocket not connected
             devices = await asyncio.wait_for(
                 JunghomeGateway.request_devices(self.ip, self.token),
                 timeout=30.0
@@ -154,3 +244,8 @@ class JunghomeCoordinator(DataUpdateCoordinator):
         except Exception as err:
             _LOGGER.debug("Connection test failed: %s", err)
             return False
+
+    @property
+    def is_websocket_connected(self) -> bool:
+        """Return True if WebSocket is connected."""
+        return self._gateway.is_connected
