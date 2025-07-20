@@ -4,6 +4,7 @@ import voluptuous as vol
 import ipaddress
 from homeassistant import config_entries, exceptions
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import config_validation as cv
 from .const import DOMAIN  # pylint:disable=unused-import
 from .hub import Hub
 from .const import CONF_IP_ADDRESS, CONF_TOKEN
@@ -11,31 +12,26 @@ import logging
 _LOGGER = logging.getLogger(__name__)
 
 
-def validate_ip_address(value):
-    """Validate that the value is a valid IP address."""
-    try:
-        ipaddress.ip_address(value)
-        return value
-    except ValueError:
-        raise vol.Invalid("Invalid IP address")
-
-
-def validate_token(value):
-    """Validate that the token is not empty."""
-    if not value or not value.strip():
-        raise vol.Invalid("Token cannot be empty")
-    return value.strip()
-
-
 DATA_SCHEMA = vol.Schema({
-    vol.Required(CONF_IP_ADDRESS): vol.All(str, validate_ip_address),
-    vol.Required(CONF_TOKEN): vol.All(str, validate_token),
+    vol.Required(CONF_IP_ADDRESS): cv.string,
+    vol.Required(CONF_TOKEN): cv.string,
 })
 
 
 async def validate_input(hass: HomeAssistant, data: dict) -> dict[str, Any]:
     """Validate the user input allows us to connect."""
-    hub = Hub(hass, data[CONF_IP_ADDRESS], data[CONF_TOKEN])
+    # Validate IP address
+    try:
+        ipaddress.ip_address(data[CONF_IP_ADDRESS])
+    except ValueError:
+        raise InvalidIP
+    
+    # Validate token is not empty
+    if not data[CONF_TOKEN] or not data[CONF_TOKEN].strip():
+        raise InvalidToken
+    
+    # Test connection
+    hub = Hub(hass, data[CONF_IP_ADDRESS], data[CONF_TOKEN].strip())
     await hub.async_initialize()
     
     result = await hub.test_connection()
@@ -59,17 +55,16 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             try:
                 info = await validate_input(self.hass, user_input)
-                return self.async_create_entry(title=info["title"], data=user_input)
+                # Store the trimmed token
+                clean_data = user_input.copy()
+                clean_data[CONF_TOKEN] = clean_data[CONF_TOKEN].strip()
+                return self.async_create_entry(title=info["title"], data=clean_data)
             except CannotConnect:
                 errors["base"] = "cannot_connect"
-            except vol.Invalid as err:
-                # Handle validation errors from the schema
-                if "Invalid IP address" in str(err):
-                    errors[CONF_IP_ADDRESS] = "invalid_ip"
-                elif "Token cannot be empty" in str(err):
-                    errors[CONF_TOKEN] = "invalid_token"
-                else:
-                    errors["base"] = "invalid_input"
+            except InvalidIP:
+                errors[CONF_IP_ADDRESS] = "invalid_ip"
+            except InvalidToken:
+                errors[CONF_TOKEN] = "invalid_token"
             except Exception:
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
