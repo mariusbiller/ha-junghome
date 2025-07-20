@@ -87,13 +87,13 @@ class JunghomeLight(CoordinatorEntity, LightEntity):
         self._attr_unique_id = f"{self._device_id}"
         self._attr_name = device["label"]
 
-        # Set supported color modes
-        self._attr_supported_color_modes = {ColorMode.ONOFF}
-        if self._brightness_id is not None:
-            self._attr_supported_color_modes.add(ColorMode.BRIGHTNESS)
-        
-        # Initialize color mode
-        self._attr_color_mode = ColorMode.ONOFF
+        # Set supported color modes based on device type
+        if device["type"] in ["DimmerLight", "ColorLight"] and self._brightness_id is not None:
+            self._attr_supported_color_modes = {ColorMode.BRIGHTNESS}
+            self._attr_color_mode = ColorMode.BRIGHTNESS
+        else:
+            self._attr_supported_color_modes = {ColorMode.ONOFF}
+            self._attr_color_mode = ColorMode.ONOFF
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -109,6 +109,14 @@ class JunghomeLight(CoordinatorEntity, LightEntity):
             model="Light",
             manufacturer=MANUFACTURER,
         )
+
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        device = self.coordinator.get_device_by_id(self._device_id)
+        if device:
+            return device.get("available", True)
+        return False
 
 
     # GET ON/OFF         
@@ -134,29 +142,38 @@ class JunghomeLight(CoordinatorEntity, LightEntity):
     # SET ON
     async def async_turn_on(self, **kwargs) -> None:
         """Turn the light on."""
-        if ATTR_BRIGHTNESS in kwargs:
-            """turn on by setting brightness"""
-            brightness = int(kwargs.get(ATTR_BRIGHTNESS, 255))
-            self._attr_color_mode = ColorMode.BRIGHTNESS
+        # For DimmerLight/ColorLight, prefer brightness control when available
+        if (self._brightness_id is not None and 
+            self._attr_color_mode == ColorMode.BRIGHTNESS):
+            
+            if ATTR_BRIGHTNESS in kwargs:
+                # Set specific brightness
+                brightness = int(kwargs.get(ATTR_BRIGHTNESS, 255))
+            else:
+                # Turn on with current brightness or full brightness
+                device = self.coordinator.get_device_by_id(self._device_id)
+                current_brightness = device.get("brightness", 255) if device else 255
+                brightness = current_brightness if current_brightness > 0 else 255
+            
+            brightness_percent = int((brightness / 255) * 100)
             url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._brightness_id}'
             body = {
                 "data": [{
-                            "key": "brightness",
-                            "value": str(int((brightness / 255) * 100))
-                        }]
+                    "key": "brightness",
+                    "value": str(brightness_percent)
+                }]
             }
             response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
             if response is None: 
                 _LOGGER.error("Failed to set brightness for light %s", self._device_id)
         else:
-            """turn on by switching"""
-            self._attr_color_mode = ColorMode.ONOFF
+            # Use switch for on/off lights or as fallback
             url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._switch_id}'
             body = {
                 "data": [{
-                            "key": "switch",
-                            "value": "1"
-                        }]
+                    "key": "switch",
+                    "value": "1"
+                }]
             }
             response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
             if response is None: 
@@ -166,14 +183,13 @@ class JunghomeLight(CoordinatorEntity, LightEntity):
     # SET OFF    
     async def async_turn_off(self, **kwargs) -> None:
         """Turn the light off."""
-        self._attr_color_mode = ColorMode.ONOFF
-        
+        # Always use switch to turn off
         url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._switch_id}'
         body = {
             "data": [{
-                        "key": "switch",
-                        "value": "0"
-                    }]
+                "key": "switch",
+                "value": "0"
+            }]
         }
         response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
         if response is None: 

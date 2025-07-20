@@ -121,31 +121,56 @@ class JunghomeCoordinator(DataUpdateCoordinator):
             
         device_type = device.get("type")
         
+        # Check if any value is NaN to mark device as unavailable
+        has_nan = any(item.get("value") == "NaN" for item in values)
+        
         if datapoint_type == "level" and device_type in ["Position", "PositionAndAngle"]:
-            # Process all values in the level datapoint (level and level_move)
-            for value_item in values:
-                key = value_item.get("key")
-                value = value_item.get("value")
-                if value is None:
-                    continue
-                    
-                if key == "level":
-                    level_value = int(value)
-                    device["current_position"] = 100 - level_value  # Jung Home uses inverted scale
-                elif key == "level_move":
-                    # Store movement state for is_opening/is_closing properties
-                    device["level_move"] = int(value)
+            if has_nan:
+                device["available"] = False
+            else:
+                device["available"] = True
+                # Process all values in the level datapoint (level and level_move)
+                for value_item in values:
+                    key = value_item.get("key")
+                    value = value_item.get("value")
+                    if value is None:
+                        continue
+                        
+                    try:
+                        if key == "level":
+                            level_value = int(float(value))
+                            device["current_position"] = 100 - level_value  # Jung Home uses inverted scale
+                        elif key == "level_move":
+                            # Store movement state for is_opening/is_closing properties
+                            device["level_move"] = int(float(value))
+                    except (ValueError, TypeError):
+                        # Skip invalid values
+                        continue
             
         elif datapoint_type == "switch" and device_type in ["OnOff", "DimmerLight", "ColorLight", "Socket"]:
             value = values[0].get("value") if values else None
-            if value is not None:
-                device["is_on"] = bool(int(value))
+            if value == "NaN":
+                device["available"] = False
+            elif value is not None:
+                device["available"] = True
+                try:
+                    device["is_on"] = bool(int(float(value)))
+                except (ValueError, TypeError):
+                    # Skip invalid values
+                    pass
             
         elif datapoint_type == "brightness" and device_type in ["DimmerLight", "ColorLight"]:
             value = values[0].get("value") if values else None
-            if value is not None:
-                brightness_value = int(value)
-                device["brightness"] = int((brightness_value / 100) * 255)  # Convert to HA scale
+            if value == "NaN":
+                device["available"] = False
+            elif value is not None:
+                device["available"] = True
+                try:
+                    brightness_value = int(float(value))
+                    device["brightness"] = int((brightness_value / 100) * 255)  # Convert to HA scale
+                except (ValueError, TypeError):
+                    # Skip invalid values
+                    pass
 
     def _convert_function_to_device(self, func_data: dict) -> dict:
         """Convert function data to device format for compatibility."""
@@ -153,18 +178,31 @@ class JunghomeCoordinator(DataUpdateCoordinator):
         device_type = device.get("type")
         
         # Set default states based on current datapoint values
+        device["available"] = True  # Default to available
+        
         if device_type in ["Position", "PositionAndAngle"]:
             level_datapoint = self._find_datapoint(device, "level")
             if level_datapoint and level_datapoint.get("values"):
-                # Process all values in level datapoint
-                for value_item in level_datapoint["values"]:
-                    key = value_item.get("key")
-                    value = value_item.get("value", 0)
-                    
-                    if key == "level":
-                        device["current_position"] = 100 - int(value)
-                    elif key == "level_move":
-                        device["level_move"] = int(value)
+                # Check if any level value is NaN
+                has_nan = any(item.get("value") == "NaN" for item in level_datapoint["values"])
+                if has_nan:
+                    device["available"] = False
+                else:
+                    # Process all values in level datapoint
+                    for value_item in level_datapoint["values"]:
+                        key = value_item.get("key")
+                        value = value_item.get("value", 0)
+                        
+                        if value is None:
+                            continue
+                            
+                        try:
+                            if key == "level":
+                                device["current_position"] = 100 - int(float(value))
+                            elif key == "level_move":
+                                device["level_move"] = int(float(value))
+                        except (ValueError, TypeError):
+                            continue
                         
                 # Set defaults if not found
                 if "current_position" not in device:
@@ -178,15 +216,33 @@ class JunghomeCoordinator(DataUpdateCoordinator):
         elif device_type in ["OnOff", "DimmerLight", "ColorLight", "Socket"]:
             switch_datapoint = self._find_datapoint(device, "switch")
             if switch_datapoint and switch_datapoint.get("values"):
-                device["is_on"] = bool(int(switch_datapoint["values"][0].get("value", 0)))
+                value = switch_datapoint["values"][0].get("value", 0)
+                if value == "NaN":
+                    device["available"] = False
+                elif value is not None:
+                    try:
+                        device["is_on"] = bool(int(float(value)))
+                    except (ValueError, TypeError):
+                        device["is_on"] = False
+                else:
+                    device["is_on"] = False
             else:
                 device["is_on"] = False
                 
             if device_type in ["DimmerLight", "ColorLight"]:
                 brightness_datapoint = self._find_datapoint(device, "brightness")
                 if brightness_datapoint and brightness_datapoint.get("values"):
-                    brightness_value = int(brightness_datapoint["values"][0].get("value", 0))
-                    device["brightness"] = int((brightness_value / 100) * 255)
+                    value = brightness_datapoint["values"][0].get("value", 0)
+                    if value == "NaN":
+                        device["available"] = False
+                    elif value is not None:
+                        try:
+                            brightness_value = int(float(value))
+                            device["brightness"] = int((brightness_value / 100) * 255)
+                        except (ValueError, TypeError):
+                            device["brightness"] = 255 if device.get("is_on") else 0
+                    else:
+                        device["brightness"] = 255 if device.get("is_on") else 0
                 else:
                     device["brightness"] = 255 if device.get("is_on") else 0
                     

@@ -95,6 +95,14 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
             manufacturer=MANUFACTURER,
         )
 
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        device = self.coordinator.get_device_by_id(self._device_id)
+        if device:
+            return device.get("available", True)
+        return False
+
 
 
     # GET POSITION
