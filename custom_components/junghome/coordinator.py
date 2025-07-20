@@ -130,11 +130,6 @@ class JunghomeCoordinator(DataUpdateCoordinator):
         old_device_ids = set(old_functions.keys())
         new_device_ids = set(new_functions.keys())
         
-        # Early exit if no changes
-        if old_device_ids == new_device_ids:
-            _LOGGER.debug("No device changes detected")
-            return
-        
         # Find new devices
         added_devices = new_device_ids - old_device_ids
         if added_devices:
