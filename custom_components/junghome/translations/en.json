@@ -3,40 +3,26 @@
         "step": {
             "user": {
                 "title": "Jung Home Integration Setup",
-                "description": "Enter your Jung Home hub connection details",
+                "description": "Enter your Jung Home hub connection details. This integration uses WebSocket for real-time updates.",
                 "data": {
                     "ip": "Hub IP Address",
-                    "token": "Authentication Token",
-                    "polling_interval": "Polling Interval (seconds)"
+                    "token": "Authentication Token"
                 },
                 "data_description": {
                     "ip": "IP address or hostname of your Jung Home hub/gateway",
-                    "token": "API authentication token for accessing the Jung Home system",
-                    "polling_interval": "How often to check for device state changes (5-300 seconds, default: 15)"
+                    "token": "API authentication token for accessing the Jung Home system"
                 }
             }
         },
         "error": {
             "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
             "invalid_ip": "Invalid IP address format",
+            "invalid_token": "Authentication token cannot be empty",
+            "invalid_input": "Invalid input provided",
             "unknown": "[%key:common::config_flow::error::unknown%]"
         },
         "abort": {
             "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
-        }
-    },
-    "options": {
-        "step": {
-            "init": {
-                "title": "Configure Jung Home Options",
-                "description": "Adjust integration settings",
-                "data": {
-                    "polling_interval": "Polling Interval (seconds)"
-                },
-                "data_description": {
-                    "polling_interval": "How often to check for device state changes (5-300 seconds)"
-                }
-            }
         }
     }
 }

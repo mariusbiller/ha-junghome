@@ -1,28 +1,40 @@
 from __future__ import annotations
 from typing import Any
 import voluptuous as vol
+import ipaddress
 from homeassistant import config_entries, exceptions
 from homeassistant.core import HomeAssistant
 from .const import DOMAIN  # pylint:disable=unused-import
 from .hub import Hub
-from .const import CONF_IP_ADDRESS, CONF_TOKEN, CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL
+from .const import CONF_IP_ADDRESS, CONF_TOKEN
 import logging
 _LOGGER = logging.getLogger(__name__)
 
 
+def validate_ip_address(value):
+    """Validate that the value is a valid IP address."""
+    try:
+        ipaddress.ip_address(value)
+        return value
+    except ValueError:
+        raise vol.Invalid("Invalid IP address")
+
+
+def validate_token(value):
+    """Validate that the token is not empty."""
+    if not value or not value.strip():
+        raise vol.Invalid("Token cannot be empty")
+    return value.strip()
+
+
 DATA_SCHEMA = vol.Schema({
-    vol.Required(CONF_IP_ADDRESS): str,
-    vol.Required(CONF_TOKEN): str,
-    vol.Optional(CONF_POLLING_INTERVAL, default=DEFAULT_POLLING_INTERVAL): vol.All(
-        vol.Coerce(int), vol.Range(min=5, max=300)
-    ),
+    vol.Required(CONF_IP_ADDRESS): vol.All(str, validate_ip_address),
+    vol.Required(CONF_TOKEN): vol.All(str, validate_token),
 })
 
 
 async def validate_input(hass: HomeAssistant, data: dict) -> dict[str, Any]:
-    if len(data[CONF_IP_ADDRESS]) < 3:
-        raise InvalidIP
-
+    """Validate the user input allows us to connect."""
     hub = Hub(hass, data[CONF_IP_ADDRESS], data[CONF_TOKEN])
     await hub.async_initialize()
     
@@ -39,10 +51,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
     CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_PUSH
 
-    @staticmethod
-    def async_get_options_flow(config_entry):
-        """Get the options flow for this handler."""
-        return OptionsFlowHandler(config_entry)
+    # No options flow needed for WebSocket-based integration
 
     async def async_step_user(self, user_input=None):
         """Handle the initial step."""
@@ -53,8 +62,14 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_create_entry(title=info["title"], data=user_input)
             except CannotConnect:
                 errors["base"] = "cannot_connect"
-            except InvalidIP:
-                errors[CONF_IP_ADDRESS] = "invalid_ip"
+            except vol.Invalid as err:
+                # Handle validation errors from the schema
+                if "Invalid IP address" in str(err):
+                    errors[CONF_IP_ADDRESS] = "invalid_ip"
+                elif "Token cannot be empty" in str(err):
+                    errors[CONF_TOKEN] = "invalid_token"
+                else:
+                    errors["base"] = "invalid_input"
             except Exception:
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
@@ -72,26 +87,5 @@ class InvalidIP(exceptions.HomeAssistantError):
     """Error to indicate there is an invalid IP."""
 
 
-class OptionsFlowHandler(config_entries.OptionsFlow):
-    """Handle Jung Home options."""
-
-    def __init__(self, config_entry):
-        """Initialize options flow."""
-        self.config_entry = config_entry
-
-    async def async_step_init(self, user_input=None):
-        """Manage the options."""
-        if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
-
-        options_schema = vol.Schema({
-            vol.Optional(
-                CONF_POLLING_INTERVAL, 
-                default=self.config_entry.options.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL)
-            ): vol.All(vol.Coerce(int), vol.Range(min=5, max=300)),
-        })
-
-        return self.async_show_form(
-            step_id="init",
-            data_schema=options_schema
-        )
+class InvalidToken(exceptions.HomeAssistantError):
+    """Error to indicate there is an invalid token."""
