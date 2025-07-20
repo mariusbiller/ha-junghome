@@ -29,7 +29,44 @@ async def async_setup_entry(
     coordinator = config_entry.runtime_data
     _LOGGER.info("Initialize Jung Home lights from coordinator")
     
-    # Get devices from coordinator data
+    # Register callback for dynamic device addition
+    async def add_new_lights(devices):
+        """Add new light devices dynamically."""
+        lights = []
+        for device in devices:
+            # skip non-light devices 
+            light_types = ["OnOff", "DimmerLight", "ColorLight", "Socket"] 
+            if device["type"] not in light_types:
+                continue
+            
+            # get switch_id
+            switch_id = None
+            for datapoint in device.get("datapoints", []):
+                if datapoint.get("type") == "switch":
+                    switch_id = datapoint.get("id")
+                    break
+                
+            # Skip no switch datapoint
+            if switch_id is None:
+                continue  
+                
+            # get brightness_id
+            brightness_id = None
+            for datapoint in device.get("datapoints", []):
+                if datapoint.get("type") == "brightness":
+                    brightness_id = datapoint.get("id")
+                    break
+            
+            # Create light entity
+            lights.append(JunghomeLight(coordinator, device, switch_id, brightness_id))
+        
+        if lights:
+            _LOGGER.info("Adding %d new light entities", len(lights))
+            async_add_entities(lights)
+    
+    coordinator.register_entity_callback("light", add_new_lights)
+    
+    # Get initial devices from coordinator data
     if coordinator.data is None or "devices" not in coordinator.data:
         _LOGGER.warning("No device data available from coordinator")
         return
@@ -37,36 +74,7 @@ async def async_setup_entry(
     devices = coordinator.data["devices"]
     
     # add light devices
-    lights = []
-    for device in devices:
-    
-        # skip non-light devices 
-        light_types = ["OnOff", "DimmerLight", "ColorLight", "Socket"] 
-        if device["type"] not in light_types:
-            continue
-        
-        # get switch_id
-        switch_id = None
-        for datapoint in device.get("datapoints", []):
-            if datapoint.get("type") == "switch":
-                switch_id = datapoint.get("id")
-                break
-            
-        # Skip no switch datapoint
-        if switch_id is None:
-            continue  
-            
-        # get brightness_id
-        brightness_id = None
-        for datapoint in device.get("datapoints", []):
-            if datapoint.get("type") == "brightness":
-                brightness_id = datapoint.get("id")
-                break
-        
-        # Create light entity
-        lights.append(JunghomeLight(coordinator, device, switch_id, brightness_id))
-
-    async_add_entities(lights)
+    await add_new_lights(devices)
 
 
     

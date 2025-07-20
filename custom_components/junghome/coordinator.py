@@ -25,6 +25,17 @@ class JunghomeCoordinator(DataUpdateCoordinator):
         self._functions = {}
         self._groups = {}
         self._scenes = {}
+        
+        # Store callbacks for dynamic entity management
+        self._entity_callbacks = {
+            "cover": [],
+            "light": [],
+            "sensor": [],
+            "binary_sensor": []
+        }
+        
+        # Track when device changes are expected
+        self._expecting_device_changes = False
 
         super().__init__(
             hass,
@@ -82,7 +93,18 @@ class JunghomeCoordinator(DataUpdateCoordinator):
     async def _handle_websocket_data(self, data_type: str, data: dict) -> None:
         """Handle incoming WebSocket data."""
         if data_type == "functions":
-            self._functions = data
+            # Only check for device changes when we're expecting them or on initial load
+            should_check_changes = self._expecting_device_changes or not self._functions
+            
+            if should_check_changes:
+                old_functions = self._functions.copy()
+                self._functions = data
+                await self._handle_device_changes(old_functions, self._functions)
+                self._expecting_device_changes = False
+            else:
+                # Fast path - just update functions data
+                self._functions = data
+            
             self.async_set_updated_data(await self._async_update_data())
             
         elif data_type == "groups":
@@ -92,7 +114,100 @@ class JunghomeCoordinator(DataUpdateCoordinator):
             self._scenes = data
             
         elif data_type == "datapoint":
+            # Fast path for individual datapoint updates
             await self._handle_datapoint_update(data)
+            
+        elif data_type == "devices-new":
+            _LOGGER.info("New devices detected: %s", data)
+            self._expecting_device_changes = True
+            
+        elif data_type == "devices-deleted":
+            _LOGGER.info("Devices deleted: %s", data)
+            self._expecting_device_changes = True
+
+    async def _handle_device_changes(self, old_functions: dict, new_functions: dict) -> None:
+        """Handle device additions and deletions."""
+        old_device_ids = set(old_functions.keys())
+        new_device_ids = set(new_functions.keys())
+        
+        # Early exit if no changes
+        if old_device_ids == new_device_ids:
+            _LOGGER.debug("No device changes detected")
+            return
+        
+        # Find new devices
+        added_devices = new_device_ids - old_device_ids
+        if added_devices:
+            _LOGGER.info("Adding new devices: %s", added_devices)
+            await self._add_new_devices(added_devices, new_functions)
+        
+        # Find deleted devices  
+        deleted_devices = old_device_ids - new_device_ids
+        if deleted_devices:
+            _LOGGER.info("Removing deleted devices: %s", deleted_devices)
+            await self._remove_deleted_devices(deleted_devices)
+
+    async def _add_new_devices(self, device_ids: set, functions: dict) -> None:
+        """Add new devices to existing platforms."""
+        from homeassistant.helpers import entity_registry as er
+        
+        # Get new devices data
+        new_devices = []
+        for device_id in device_ids:
+            if device_id in functions:
+                device_data = functions[device_id]
+                converted_device = self._convert_function_to_device(device_data)
+                new_devices.append(converted_device)
+        
+        # Add new entities to each platform
+        for platform_type, callbacks in self._entity_callbacks.items():
+            platform_devices = []
+            
+            for device in new_devices:
+                if self._device_belongs_to_platform(device, platform_type):
+                    platform_devices.append(device)
+            
+            if platform_devices and callbacks:
+                # Call the platform's entity creation callback
+                for callback in callbacks:
+                    await callback(platform_devices)
+
+    async def _remove_deleted_devices(self, device_ids: set) -> None:
+        """Remove deleted devices from entity registry."""
+        from homeassistant.helpers import entity_registry as er
+        
+        entity_registry = er.async_get(self.hass)
+        
+        for device_id in device_ids:
+            # Find and remove entities for this device
+            entities_to_remove = []
+            for entity_id, entry in entity_registry.entities.items():
+                if (entry.config_entry_id == self.entry.entry_id and 
+                    entry.unique_id == device_id):
+                    entities_to_remove.append(entity_id)
+            
+            for entity_id in entities_to_remove:
+                _LOGGER.info("Removing entity: %s for deleted device: %s", entity_id, device_id)
+                entity_registry.async_remove(entity_id)
+
+    def _device_belongs_to_platform(self, device: dict, platform_type: str) -> bool:
+        """Check if device belongs to a specific platform."""
+        device_type = device.get("type")
+        
+        if platform_type == "cover":
+            return device_type in ["Position", "PositionAndAngle"]
+        elif platform_type == "light":
+            return device_type in ["OnOff", "DimmerLight", "ColorLight", "Socket"]
+        elif platform_type in ["sensor", "binary_sensor"]:
+            # These are handled by hub config, not device functions
+            return False
+        
+        return False
+
+    def register_entity_callback(self, platform_type: str, callback) -> None:
+        """Register a callback for dynamic entity creation."""
+        if platform_type in self._entity_callbacks:
+            self._entity_callbacks[platform_type].append(callback)
 
     async def _handle_datapoint_update(self, datapoint_data: dict) -> None:
         """Handle real-time datapoint updates."""

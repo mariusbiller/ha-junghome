@@ -33,7 +33,32 @@ async def async_setup_entry(
     coordinator = config_entry.runtime_data
     _LOGGER.info("Initialize Jung Home covers from coordinator")
     
-    # Get devices from coordinator data
+    # Register callback for dynamic device addition
+    async def add_new_covers(devices):
+        """Add new cover devices dynamically."""
+        covers = []
+        for device in devices:
+            # skip non-cover devices 
+            if device["type"] not in ["Position", "PositionAndAngle"]:
+                continue
+            
+            # Find the state id for the cover position
+            state_id = None
+            for datapoint in device.get("datapoints", []):
+                if datapoint.get("type") == "level":
+                    state_id = datapoint.get("id")
+                    break
+            
+            # Create the cover entity
+            covers.append(JunghomeCover(coordinator, device, state_id))
+        
+        if covers:
+            _LOGGER.info("Adding %d new cover entities", len(covers))
+            async_add_entities(covers)
+    
+    coordinator.register_entity_callback("cover", add_new_covers)
+    
+    # Get initial devices from coordinator data
     if coordinator.data is None or "devices" not in coordinator.data:
         _LOGGER.warning("No device data available from coordinator")
         return
@@ -41,23 +66,7 @@ async def async_setup_entry(
     devices = coordinator.data["devices"]
 
     # add cover devices
-    covers = []
-    for device in devices:
-        # skip non-cover devices 
-        if device["type"] not in ["Position", "PositionAndAngle"]:
-            continue
-        
-        # Find the state id for the cover position
-        state_id = None
-        for datapoint in device.get("datapoints", []):
-            if datapoint.get("type") == "level":
-                state_id = datapoint.get("id")
-                break
-        
-        # Create the cover entity
-        covers.append(JunghomeCover(coordinator, device, state_id))
-    
-    async_add_entities(covers)
+    await add_new_covers(devices)
 
 
 #
