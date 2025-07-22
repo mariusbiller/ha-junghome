@@ -146,7 +146,19 @@ class JunghomeGateway:
                 async with session.patch(url, headers=headers, json=data, ssl=False) as response:
                     response.raise_for_status()
                     _LOGGER.info(f"PATCH request to {url} succeeded.")
-                    return await response.json()
+                    
+                    # Get response text first, then parse as JSON
+                    response_text = await response.text()
+                    if response_text:
+                        try:
+                            import json
+                            return json.loads(response_text)
+                        except json.JSONDecodeError as json_err:
+                            _LOGGER.warning(f"Failed to parse JSON response from {url}: {json_err}. Response: {response_text}")
+                    
+                    # If no response body or JSON parsing failed, but request was successful
+                    return {"success": True}
+                    
         except aiohttp.ClientResponseError as e:
             if e.status == 401:
                 _LOGGER.error(f"Authentication failed for {url}: {e}")
