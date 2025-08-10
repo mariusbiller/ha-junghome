@@ -76,7 +76,7 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
     """Jung Home cover entity."""
     
     _attr_supported_features = (
-        CoverEntityFeature.SET_POSITION | CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE
+        CoverEntityFeature.SET_POSITION | CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE | CoverEntityFeature.STOP
     )
 
     def __init__(self, coordinator, device, state_id: str) -> None:
@@ -188,6 +188,26 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
         response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
         if response is None: 
             _LOGGER.error("Failed to set cover position %s", self._device_id)
+
+
+    # STOP COVER
+    async def async_stop_cover(self, **kwargs: Any) -> None:
+        """Stop the cover movement."""
+        # Only send stop command if cover is currently moving
+        device = self.coordinator.get_device_by_id(self._device_id)
+        if device and device.get("level_move", 0) != 0:
+            url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._state_id}'
+            body = {
+                "data": [{
+                    "key": "level_move",
+                    "value": "0"
+                }]
+            }
+            response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
+            if response is None: 
+                _LOGGER.error("Failed to stop cover %s", self._device_id)
+        else:
+            _LOGGER.debug("Cover %s is not moving, no stop command sent", self._device_id)
 
 
 
