@@ -64,6 +64,9 @@ class JunghomeCoordinator(DataUpdateCoordinator):
 
     async def async_setup(self) -> None:
         """Set up the coordinator and start WebSocket connection."""
+        # Expect device changes to ensure fresh data on setup/reload
+        self._expecting_device_changes = True
+        
         # Start WebSocket connection
         await self._gateway.connect_websocket(self._handle_websocket_data)
         
@@ -73,18 +76,21 @@ class JunghomeCoordinator(DataUpdateCoordinator):
         # If no WebSocket data received, fall back to HTTP for initial setup
         if not self._functions:
             _LOGGER.info("No initial WebSocket data, falling back to HTTP fetch")
-            try:
-                devices = await asyncio.wait_for(
-                    JunghomeGateway.request_devices(self.ip, self.token),
-                    timeout=30.0
-                )
-                if devices:
-                    for device in devices:
-                        self._functions[device["id"]] = device
-                    _LOGGER.info("Initial data loaded via HTTP: %d devices", len(devices))
-            except Exception as err:
-                _LOGGER.warning("Failed to get initial device data via HTTP: %s", err)
-                raise
+            await self._refresh_device_data()
+
+    async def _refresh_device_data(self) -> None:
+        """Refresh device data from the Jung Home hub."""
+        try:
+            devices = await asyncio.wait_for(
+                JunghomeGateway.request_devices(self.ip, self.token),
+                timeout=30.0
+            )
+            if devices:
+                self._functions = {device["id"]: device for device in devices}
+                _LOGGER.info("Device data refreshed via HTTP: %d devices", len(devices))
+        except Exception as err:
+            _LOGGER.warning("Failed to refresh device data via HTTP: %s", err)
+            raise
 
     async def async_shutdown(self) -> None:
         """Shutdown the coordinator and disconnect WebSocket."""
