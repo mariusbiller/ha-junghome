@@ -216,7 +216,10 @@ class JunghomeGateway:
 
     async def _connect_and_listen(self):
         """Connect to WebSocket and listen for messages."""
-        ws_url = f"wss://{self.host}/ws"
+        import time
+        # Add timestamp to bust server-side cache
+        timestamp = int(time.time() * 1000)
+        ws_url = f"wss://{self.host}/ws?t={timestamp}"
         headers = {"token": self.token}
         
         _LOGGER.info("Connecting to WebSocket at %s", ws_url)
