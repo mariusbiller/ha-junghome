@@ -217,6 +217,14 @@ class JunghomeGateway:
     async def _connect_and_listen(self):
         """Connect to WebSocket and listen for messages."""
         import time
+
+        # Call request_devices once before connection to unlock caching
+        try:
+            await self.request_devices(self.host, self.token)
+            _LOGGER.info("Initial request_devices call completed to unlock caching")
+        except Exception as e:
+            _LOGGER.warning("Failed to call request_devices after websocket connection: %s", e)
+        
         # Add timestamp to bust server-side cache
         timestamp = int(time.time() * 1000)
         ws_url = f"wss://{self.host}/ws?t={timestamp}"
@@ -234,6 +242,7 @@ class JunghomeGateway:
         
         self._is_connected = True
         _LOGGER.info("WebSocket connected successfully")
+        
         
         async for msg in self._ws_connection:
             if msg.type == aiohttp.WSMsgType.TEXT:
