@@ -11,11 +11,13 @@
     "aiohttp>=3.8.0"
   ],
   "ssdp": [],
-  "version": "0.1.0",
+  "version": "0.2.0",
   "zeroconf": [],
   "dhcp": [
     {
       "hostname": "junghome*"
     }
-  ]
+  ],
+  "loggers": ["custom_components.junghome"],
+  "integration_type": "hub"
 }
