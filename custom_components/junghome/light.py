@@ -150,42 +150,17 @@ class JunghomeLight(CoordinatorEntity, LightEntity):
     # SET ON
     async def async_turn_on(self, **kwargs) -> None:
         """Turn the light on."""
-        # For DimmerLight/ColorLight, prefer brightness control when available
-        if (self._brightness_id is not None and 
-            self._attr_color_mode == ColorMode.BRIGHTNESS):
-            
-            if ATTR_BRIGHTNESS in kwargs:
-                # Set specific brightness
-                brightness = int(kwargs.get(ATTR_BRIGHTNESS, 255))
-            else:
-                # Turn on with current brightness or full brightness
-                device = self.coordinator.get_device_by_id(self._device_id)
-                current_brightness = device.get("brightness", 255) if device else 255
-                brightness = current_brightness if current_brightness > 0 else 255
-            
-            brightness_percent = int((brightness / 255) * 100)
-            url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._brightness_id}'
-            body = {
-                "data": [{
-                    "key": "brightness",
-                    "value": str(brightness_percent)
-                }]
-            }
-            response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
-            if response is None: 
-                _LOGGER.error("Failed to set brightness for light %s", self._device_id)
-        else:
-            # Use switch for on/off lights or as fallback
-            url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._switch_id}'
-            body = {
-                "data": [{
-                    "key": "switch",
-                    "value": "1"
-                }]
-            }
-            response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
-            if response is None: 
-                _LOGGER.error("Failed to turn on light %s", self._device_id)
+        # Always use switch to turn on
+        url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._switch_id}'
+        body = {
+            "data": [{
+                "key": "switch",
+                "value": "1"
+            }]
+        }
+        response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
+        if response is None: 
+            _LOGGER.error("Failed to turn on light %s", self._device_id)
         
         
     # SET OFF    
