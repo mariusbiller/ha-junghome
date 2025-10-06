@@ -17,7 +17,7 @@ PLATFORMS = [Platform.LIGHT, Platform.COVER, Platform.SENSOR, Platform.BINARY_SE
 JunghomeConfigEntry = ConfigEntry[JunghomeCoordinator]
 
 async def async_setup_entry(hass: HomeAssistant, entry: JunghomeConfigEntry) -> bool:
-    """Set up Jung Home from a config entry."""
+    """Set up JUNG HOME from a config entry."""
     coordinator = JunghomeCoordinator(hass, entry)
     
     try:
@@ -27,9 +27,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: JunghomeConfigEntry) -> 
         # Test initial connection and raise ConfigEntryNotReady if it fails
         await coordinator.async_config_entry_first_refresh()
     except Exception as err:
-        _LOGGER.error("Failed to connect to Jung Home hub at %s: %s", 
+        _LOGGER.error("Failed to connect to JUNG HOME gateway at %s: %s", 
                      coordinator.ip, err)
-        raise ConfigEntryNotReady(f"Unable to connect to Jung Home hub at {coordinator.ip}") from err
+        raise ConfigEntryNotReady(f"Unable to connect to JUNG HOME gateway at {coordinator.ip}") from err
 
     # Store coordinator in runtime_data
     entry.runtime_data = coordinator
