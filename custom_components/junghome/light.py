@@ -33,9 +33,9 @@ async def async_setup_entry(
     async def add_new_lights(devices):
         """Add new light devices dynamically."""
         lights = []
+        light_types = {"OnOff", "DimmerLight", "ColorLight"}
         for device in devices:
-            # skip non-light devices 
-            light_types = ["OnOff", "DimmerLight", "ColorLight", "Socket"] 
+            # skip non-light devices
             if device["type"] not in light_types:
                 continue
             
@@ -195,7 +195,5 @@ class JunghomeLight(CoordinatorEntity, LightEntity):
         response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
         if response is None: 
             _LOGGER.error("Failed to turn off light %s", self._device_id)
-
-
 
 

@@ -13,7 +13,13 @@ _LOGGER = logging.getLogger(__name__)
 
 # List of platforms to support. 
 # each should match .py file (e.g. <cover.py> and <light.py>)
-PLATFORMS = [Platform.LIGHT, Platform.COVER, Platform.SENSOR, Platform.BINARY_SENSOR]
+PLATFORMS = [
+    Platform.LIGHT,
+    Platform.COVER,
+    Platform.SENSOR,
+    Platform.BINARY_SENSOR,
+    Platform.SWITCH,
+]
 JunghomeConfigEntry = ConfigEntry[JunghomeCoordinator]
 
 async def async_setup_entry(hass: HomeAssistant, entry: JunghomeConfigEntry) -> bool:

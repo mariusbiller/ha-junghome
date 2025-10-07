@@ -30,6 +30,7 @@ class JunghomeCoordinator(DataUpdateCoordinator):
         self._entity_callbacks = {
             "cover": [],
             "light": [],
+            "switch": [],
             "sensor": [],
             "binary_sensor": []
         }
@@ -198,7 +199,9 @@ class JunghomeCoordinator(DataUpdateCoordinator):
         if platform_type == "cover":
             return device_type in ["Position", "PositionAndAngle"]
         elif platform_type == "light":
-            return device_type in ["OnOff", "DimmerLight", "ColorLight", "Socket"]
+            return device_type in ["OnOff", "DimmerLight", "ColorLight"]
+        elif platform_type == "switch":
+            return device_type == "Socket"
         elif platform_type in ["sensor", "binary_sensor"]:
             # These are handled by hub config, not device functions
             return False
