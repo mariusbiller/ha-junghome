@@ -31,7 +31,8 @@ class JunghomeCoordinator(DataUpdateCoordinator):
             "cover": [],
             "light": [],
             "sensor": [],
-            "binary_sensor": []
+            "binary_sensor": [],
+            "switch": []
         }
         
         # Track when device changes are expected
@@ -98,6 +99,7 @@ class JunghomeCoordinator(DataUpdateCoordinator):
 
     async def _handle_websocket_data(self, data_type: str, data: dict) -> None:
         """Handle incoming WebSocket data."""
+        _LOGGER.debug("WebSocket data received: %s", data)
         if data_type == "functions":
             # Only check for device changes when we're expecting them or on initial load
             should_check_changes = self._expecting_device_changes or not self._functions
@@ -194,12 +196,16 @@ class JunghomeCoordinator(DataUpdateCoordinator):
     def _device_belongs_to_platform(self, device: dict, platform_type: str) -> bool:
         """Check if device belongs to a specific platform."""
         device_type = device.get("type")
-        
+
         if platform_type == "cover":
             return device_type in ["Position", "PositionAndAngle"]
         elif platform_type == "light":
-            return device_type in ["OnOff", "DimmerLight", "ColorLight", "Socket"]
-        elif platform_type in ["sensor", "binary_sensor"]:
+            return device_type in ["OnOff", "DimmerLight", "ColorLight"]
+        elif platform_type == "switch":
+            return device_type in ["Socket", "SocketEnergy"]
+        elif platform_type == "sensor":
+            return device_type == "SocketEnergy"
+        elif platform_type == "binary_sensor":
             # These are handled by hub config, not device functions
             return False
         
@@ -234,12 +240,18 @@ class JunghomeCoordinator(DataUpdateCoordinator):
         """Update device state based on datapoint values."""
         if not values:
             return
-            
+
         device_type = device.get("type")
-        
+
         # Check if any value is NaN to mark device as unavailable
         has_nan = any(item.get("value") == "NaN" for item in values)
-        
+
+        _LOGGER.debug("Updating device state for %s [%s] with datapoint %s: %s", device["id"], device_type, datapoint_type, values)
+
+        # Ensure the "states" dictionary exists
+        if "states" not in device:
+            device["states"] = {}
+
         if datapoint_type == "level" and device_type in ["Position", "PositionAndAngle"]:
             if has_nan:
                 device["available"] = False
@@ -251,7 +263,7 @@ class JunghomeCoordinator(DataUpdateCoordinator):
                     value = value_item.get("value")
                     if value is None:
                         continue
-                        
+
                     try:
                         if key == "level":
                             level_value = int(float(value))
@@ -262,8 +274,8 @@ class JunghomeCoordinator(DataUpdateCoordinator):
                     except (ValueError, TypeError):
                         # Skip invalid values
                         continue
-            
-        elif datapoint_type == "switch" and device_type in ["OnOff", "DimmerLight", "ColorLight", "Socket"]:
+
+        elif datapoint_type == "switch" and device_type in ["OnOff", "DimmerLight", "ColorLight", "Socket", "SocketEnergy"]:
             value = values[0].get("value") if values else None
             if value == "NaN":
                 device["available"] = False
@@ -274,7 +286,7 @@ class JunghomeCoordinator(DataUpdateCoordinator):
                 except (ValueError, TypeError):
                     # Skip invalid values
                     pass
-            
+
         elif datapoint_type == "brightness" and device_type in ["DimmerLight", "ColorLight"]:
             value = values[0].get("value") if values else None
             if value == "NaN":
@@ -288,10 +300,56 @@ class JunghomeCoordinator(DataUpdateCoordinator):
                     # Skip invalid values
                     pass
 
+        # Add energy monitoring for SocketEnergy or Socket
+        if datapoint_type == "quantity" and device_type in ["Socket", "SocketEnergy"]:
+            # Extract the relevant fields from the values list
+            quantity_value = None
+            quantity_label = None
+            quantity_unit = None
+    
+            for value_item in values:
+                key = value_item.get("key")
+                value = value_item.get("value")
+    
+                if key == "quantity":
+                    quantity_value = value
+                elif key == "quantity_label":
+                    quantity_label = value.strip()
+                elif key == "quantity_unit":
+                    quantity_unit = value.strip()
+    
+            # Map the quantity_label to a sensor_type
+            if quantity_label and quantity_unit and quantity_value is not None:
+                sensor_type = self._map_quantity_label_to_sensor_type(quantity_label)
+                if sensor_type:
+                    try:
+                        device["states"][sensor_type] = {"value": float(quantity_value), "unit": quantity_unit}
+                        _LOGGER.debug("Updated states for device %s: %s", device["id"], device["states"])
+                    except ValueError:
+                        _LOGGER.warning("Invalid value for device %s, label %s: %s", device["id"], quantity_label, quantity_value)
+
+    def _map_quantity_label_to_sensor_type(self, label: str) -> str | None:
+        """Map quantity labels to unique sensor types."""
+        label_map = {
+            "Present Device Input Power": "sensor_device_input_power",
+            "Active Power Loadside": "sensor_active_power_loadside",
+            "Present Output Current": "sensor_output_current",
+            "Present Output Voltage": "sensor_output_voltage",
+        }
+        return label_map.get(label.strip())
+
     def _convert_function_to_device(self, func_data: dict) -> dict:
         """Convert function data to device format for compatibility."""
         device = func_data.copy()
         device_type = device.get("type")
+
+         # Correctly set the device type ???
+        if device_type == "Socket" and "quantity" in [dp.get("key") for dp in device.get("datapoints", [])]:
+            device["type"] = "SocketEnergy"
+
+        # Ensure the "states" dictionary exists
+        if "states" not in device:
+            device["states"] = {}
         
         # Set default states based on current datapoint values
         device["available"] = True  # Default to available
@@ -329,7 +387,7 @@ class JunghomeCoordinator(DataUpdateCoordinator):
                 device["current_position"] = 50
                 device["level_move"] = 0
                 
-        elif device_type in ["OnOff", "DimmerLight", "ColorLight", "Socket"]:
+        elif device_type in ["OnOff", "DimmerLight", "ColorLight", "Socket", "SocketEnergy"]:
             switch_datapoint = self._find_datapoint(device, "switch")
             if switch_datapoint and switch_datapoint.get("values"):
                 value = switch_datapoint["values"][0].get("value", 0)
@@ -361,6 +419,34 @@ class JunghomeCoordinator(DataUpdateCoordinator):
                         device["brightness"] = 255 if device.get("is_on") else 0
                 else:
                     device["brightness"] = 255 if device.get("is_on") else 0
+            
+            # Add energy monitoring for SocketEnergy
+            if device_type == "SocketEnergy":
+                # Process datapoints to populate the "states" dictionary
+                for datapoint in device.get("datapoints", []):
+                    if datapoint["type"] == "quantity":
+                        values = datapoint.get("values", [])
+                        quantity_value = None
+                        quantity_label = None
+                        quantity_unit = None
+            
+                        # Extract the relevant values from the datapoint
+                        for value in values:
+                            if value["key"] == "quantity":
+                                quantity_value = value["value"]
+                            elif value["key"] == "quantity_label":
+                                quantity_label = value["value"].strip()
+                            elif value["key"] == "quantity_unit":
+                                quantity_unit = value["value"].strip()
+            
+                        # Map the quantity_label to a sensor_type
+                        if quantity_label and quantity_unit and quantity_value is not None:
+                            sensor_type = self._map_quantity_label_to_sensor_type(quantity_label)
+                            if sensor_type:
+                                device["states"][sensor_type] = {
+                                    "value": float(quantity_value),
+                                    "unit": quantity_unit,
+                                }
                     
         return device
 

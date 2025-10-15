@@ -14,7 +14,6 @@ from .junghome_client import JunghomeGateway
 
 _LOGGER = logging.getLogger(__name__)
 
-
 #
 # Setup
 #
@@ -35,7 +34,7 @@ async def async_setup_entry(
         lights = []
         for device in devices:
             # skip non-light devices 
-            light_types = ["OnOff", "DimmerLight", "ColorLight", "Socket"] 
+            light_types = ["OnOff", "DimmerLight", "ColorLight"] 
             if device["type"] not in light_types:
                 continue
             
