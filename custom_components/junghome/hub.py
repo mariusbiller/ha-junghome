@@ -8,7 +8,7 @@ from .junghome_client import JunghomeGateway
 _LOGGER = logging.getLogger(__name__)
 
 class Hub:
-    """Jung Home Hub representation."""
+    """JUNG HOME gateway representation."""
     
     def __init__(self, hass: HomeAssistant, ip: str, token: str) -> None:
         """Initialize the hub."""
@@ -29,8 +29,8 @@ class Hub:
         return self._id
 
     async def test_connection(self) -> bool:
-        """Test connection to the Jung Home hub."""
-        _LOGGER.debug("Testing connection to Jung Home hub at %s", self.ip)
+        """Test connection to the JUNG HOME gateway."""
+        _LOGGER.debug("Testing connection to JUNG HOME gateway at %s", self.ip)
 
         try:
             # Test actual connectivity with a timeout
@@ -43,7 +43,7 @@ class Hub:
                 _LOGGER.warning("Connection test failed: No response from hub at %s", self.ip)
                 return False
                 
-            _LOGGER.info("Connection to Jung Home hub at %s is OK", self.ip)
+            _LOGGER.info("Connection to JUNG HOME gateway at %s is OK", self.ip)
             return True
             
         except asyncio.TimeoutError:
@@ -52,4 +52,4 @@ class Hub:
         except Exception as err:
             _LOGGER.warning("Connection test failed: %s", err)
             return False
-        
+

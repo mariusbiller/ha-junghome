@@ -43,7 +43,7 @@ class JunghomeGateway:
         devices = await JunghomeGateway.http_get_request(url, token)
 
         if devices is None:
-            _LOGGER.error("Failed to retrieve Jung Home devices.")
+            _LOGGER.error("Failed to retrieve JUNG HOME devices.")
             return None
 
         _LOGGER.debug(f"Devices response: {devices}")
@@ -69,7 +69,7 @@ class JunghomeGateway:
         config = await JunghomeGateway.http_get_request(url, token)
 
         if config is None:
-            _LOGGER.error("Failed to retrieve Jung Home hub configuration.")
+            _LOGGER.error("Failed to retrieve JUNG HOME gateway configuration.")
             return None
 
         _LOGGER.debug(f"Hub config response: {config}")
