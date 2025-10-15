@@ -196,5 +196,3 @@ class JunghomeLight(CoordinatorEntity, LightEntity):
             _LOGGER.error("Failed to turn off light %s", self._device_id)
 
 
-
-

@@ -2,7 +2,7 @@
 from __future__ import annotations
 import logging
 
-from homeassistant.components.switch import SwitchEntity
+from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import DeviceInfo
@@ -14,7 +14,9 @@ from .junghome_client import JunghomeGateway
 
 _LOGGER = logging.getLogger(__name__)
 
-
+#
+# Setup
+#
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: JunghomeConfigEntry,
@@ -60,11 +62,15 @@ async def async_setup_entry(
     devices = coordinator.data["devices"]
     await add_new_switches(devices)
 
-
+#
+# SWITCH
+#
 class JunghomeSwitch(CoordinatorEntity, SwitchEntity):
-    """Jung Home switch entity."""
+    """Jung Home switch entity"""
 
-    def __init__(self, coordinator, device, switch_id) -> None:
+    _attr_device_class = SwitchDeviceClass.OUTLET
+
+    def __init__(self, coordinator, device, switch_id: str) -> None:
         """Initialize a Jung Home Switch."""
         super().__init__(coordinator)
         self._device_id = device["id"]
