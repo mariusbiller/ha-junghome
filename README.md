@@ -1,13 +1,14 @@
 # ha-junghome
-This is a minimum example integration showing how to integrate JUNG HOME devices into Home Assistant.
+This is a example integration showing how to integrate JUNG HOME devices into Home Assistant.
 The communication to JUNG HOME devices runs over local network via the JUNG HOME Gateway – no cloud required.
 
 ## Supported device types
-- OnOff Light
+- On/Off Light
 - Dimmable Light
 - Tuneable White Light (switching and brightness only)
-- Socket (displayed as Light)
+- Socket (including power measurement)
 - Window Cover
+- Gateway as Hub Device
 
 >**hint:**
 *Please note that the provided integration is a bare minimum example and may have limitations regarding its quality and functionality.*
@@ -15,6 +16,7 @@ The communication to JUNG HOME devices runs over local network via the JUNG HOME
 ## Prerequisites
 - JUNG HOME devices have already been installed and set up using the official JUNG HOME App
 - A JUNG HOME Gateway is added, active, and in the same local network as your Home Assistant instance
+- make sure your JUNG HOME Gateway ip address does not change (e.g. by making it constant in the router's DHCP settings).
 
 
 ## Installation
@@ -37,10 +39,6 @@ The communication to JUNG HOME devices runs over local network via the JUNG HOME
 - Get your access token by using the register route at `https://junghome.local/api/junghome/swagger` and confirm with JUNG HOME App or Gateway button press
 - Add this integration to Home Assistant via the UI config flow.
 
-## Support Me
-If you find my work helpful, you can support me by buying me a coffee! ☕
-
-[![Buy Me a Coffee](https://img.buymeacoffee.com/button-api/?username=mariusbiller&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff)](https://www.buymeacoffee.com/mariusbiller)
 
 ## Credits
 - special thanks to [@luismalves](https://github.com/luismalves) for bringing the integration to the next level.
