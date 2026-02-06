@@ -93,6 +93,11 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
+        device = self.coordinator.get_device_by_id(self._device_id)
+        if device:
+            label = device.get("label")
+            if label and label != self._attr_name:
+                self._attr_name = label
         self.async_write_ha_state()
     
     @property
@@ -218,4 +223,3 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
                 _LOGGER.error("Failed to stop cover %s", self._device_id)
         else:
             _LOGGER.debug("Cover %s is not moving, no stop command sent", self._device_id)
-

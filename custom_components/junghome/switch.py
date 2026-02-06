@@ -82,6 +82,11 @@ class JunghomeSwitch(CoordinatorEntity, SwitchEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
+        device = self.coordinator.get_device_by_id(self._device_id)
+        if device:
+            label = device.get("label")
+            if label and label != self._attr_name:
+                self._attr_name = label
         self.async_write_ha_state()
 
     @property

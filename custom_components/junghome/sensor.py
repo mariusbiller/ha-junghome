@@ -160,9 +160,10 @@ class JunghomeEnergySensor(CoordinatorEntity, SensorEntity):
         self._sensor_type = sensor_type
         self._quantity_label = quantity_label.lower().replace(" ", "_").replace("/", "_")
         self._device_label = device["label"].lower().replace(" ", "_").replace("/", "_")
+        self._quantity_label_display = quantity_label.strip()
         # Per JUNG HOME documentation, device_id is unique across installations and device resets.
         self._attr_unique_id = f"{self._device_id}_{self._datapoint_id}"
-        self._attr_name = f"{device['label']} {quantity_label.strip()}"
+        self._attr_name = f"{device['label']} {self._quantity_label_display}"
         _LOGGER.debug("_attr_device_class: %s", self.SENSOR_TYPES[sensor_type])
         self._attr_device_class = self.SENSOR_TYPES[sensor_type][1]
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -171,6 +172,13 @@ class JunghomeEnergySensor(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
+        device = self.coordinator.get_device_by_id(self._device_id)
+        if device:
+            label = device.get("label")
+            if label:
+                new_name = f"{label} {self._quantity_label_display}"
+                if new_name != self._attr_name:
+                    self._attr_name = new_name
         self.async_write_ha_state()
 
     @property
