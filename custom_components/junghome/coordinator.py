@@ -35,8 +35,6 @@ class JunghomeCoordinator(DataUpdateCoordinator):
             "switch": []
         }
         
-        # Track when device changes are expected
-        self._expecting_device_changes = False
 
         super().__init__(
             hass,
@@ -65,8 +63,6 @@ class JunghomeCoordinator(DataUpdateCoordinator):
 
     async def async_setup(self) -> None:
         """Set up the coordinator and start WebSocket connection."""
-        # Expect device changes to ensure fresh data on setup/reload
-        self._expecting_device_changes = True
         
         # Start WebSocket connection
         await self._gateway.connect_websocket(self._handle_websocket_data)
@@ -119,18 +115,9 @@ class JunghomeCoordinator(DataUpdateCoordinator):
         """Handle incoming WebSocket data."""
         _LOGGER.debug("WebSocket data received: %s", data)
         if data_type == "functions":
-            # Only check for device changes when we're expecting them or on initial load
-            should_check_changes = self._expecting_device_changes or not self._functions
-            
-            if should_check_changes:
-                old_functions = self._functions.copy()
-                self._functions = data
-                await self._handle_device_changes(old_functions, self._functions)
-                self._expecting_device_changes = False
-            else:
-                # Fast path - just update functions data
-                self._functions = data
-            
+            old_functions = self._functions.copy()
+            self._functions = data
+            await self._handle_device_changes(old_functions, self._functions)
             self.async_set_updated_data(await self._async_update_data())
             
         elif data_type == "groups":
@@ -145,11 +132,9 @@ class JunghomeCoordinator(DataUpdateCoordinator):
             
         elif data_type == "devices-new":
             _LOGGER.info("New devices detected: %s", data)
-            self._expecting_device_changes = True
             
         elif data_type == "devices-deleted":
             _LOGGER.info("Devices deleted: %s", data)
-            self._expecting_device_changes = True
 
     async def _handle_device_changes(self, old_functions: dict, new_functions: dict) -> None:
         """Handle device additions and deletions."""
