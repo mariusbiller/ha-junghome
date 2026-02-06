@@ -35,8 +35,6 @@ class JunghomeCoordinator(DataUpdateCoordinator):
             "switch": []
         }
         
-        # Track when device changes are expected
-        self._expecting_device_changes = False
 
         super().__init__(
             hass,
@@ -65,8 +63,6 @@ class JunghomeCoordinator(DataUpdateCoordinator):
 
     async def async_setup(self) -> None:
         """Set up the coordinator and start WebSocket connection."""
-        # Expect device changes to ensure fresh data on setup/reload
-        self._expecting_device_changes = True
         
         # Start WebSocket connection
         await self._gateway.connect_websocket(self._handle_websocket_data)
@@ -78,6 +74,10 @@ class JunghomeCoordinator(DataUpdateCoordinator):
         if not self._functions:
             _LOGGER.info("No initial WebSocket data, falling back to HTTP fetch")
             await self._refresh_device_data()
+
+        # If no group data received, fall back to HTTP for initial setup
+        if not self._groups:
+            await self._refresh_group_data()
 
     async def _refresh_device_data(self) -> None:
         """Refresh device data from the Jung Home hub."""
@@ -93,6 +93,20 @@ class JunghomeCoordinator(DataUpdateCoordinator):
             _LOGGER.warning("Failed to refresh device data via HTTP: %s", err)
             raise
 
+    async def _refresh_group_data(self) -> None:
+        """Refresh group data from the Jung Home hub."""
+        try:
+            groups = await asyncio.wait_for(
+                JunghomeGateway.request_groups(self.ip, self.token),
+                timeout=30.0
+            )
+            if groups:
+                self._groups = {group["id"]: group for group in groups}
+                _LOGGER.info("Group data refreshed via HTTP: %d groups", len(groups))
+        except Exception as err:
+            _LOGGER.warning("Failed to refresh group data via HTTP: %s", err)
+            raise
+
     async def async_shutdown(self) -> None:
         """Shutdown the coordinator and disconnect WebSocket."""
         await self._gateway.disconnect_websocket()
@@ -101,18 +115,9 @@ class JunghomeCoordinator(DataUpdateCoordinator):
         """Handle incoming WebSocket data."""
         _LOGGER.debug("WebSocket data received: %s", data)
         if data_type == "functions":
-            # Only check for device changes when we're expecting them or on initial load
-            should_check_changes = self._expecting_device_changes or not self._functions
-            
-            if should_check_changes:
-                old_functions = self._functions.copy()
-                self._functions = data
-                await self._handle_device_changes(old_functions, self._functions)
-                self._expecting_device_changes = False
-            else:
-                # Fast path - just update functions data
-                self._functions = data
-            
+            old_functions = self._functions.copy()
+            self._functions = data
+            await self._handle_device_changes(old_functions, self._functions)
             self.async_set_updated_data(await self._async_update_data())
             
         elif data_type == "groups":
@@ -127,11 +132,9 @@ class JunghomeCoordinator(DataUpdateCoordinator):
             
         elif data_type == "devices-new":
             _LOGGER.info("New devices detected: %s", data)
-            self._expecting_device_changes = True
             
         elif data_type == "devices-deleted":
             _LOGGER.info("Devices deleted: %s", data)
-            self._expecting_device_changes = True
 
     async def _handle_device_changes(self, old_functions: dict, new_functions: dict) -> None:
         """Handle device additions and deletions."""
@@ -333,8 +336,6 @@ class JunghomeCoordinator(DataUpdateCoordinator):
         label_map = {
             "Present Device Input Power": "sensor_device_input_power",
             "Active Power Loadside": "sensor_active_power_loadside",
-            "Present Output Current": "sensor_output_current",
-            "Present Output Voltage": "sensor_output_voltage",
         }
         return label_map.get(label.strip())
 
@@ -353,6 +354,18 @@ class JunghomeCoordinator(DataUpdateCoordinator):
         
         # Set default states based on current datapoint values
         device["available"] = True  # Default to available
+
+        # Attach group info (if available)
+        group_ids = device.get("parent_groups", []) or []
+        group_names = [
+            self._groups[group_id].get("name")
+            for group_id in group_ids
+            if group_id in self._groups and self._groups[group_id].get("name")
+        ]
+        device["group_ids"] = group_ids
+        device["group_names"] = group_names
+        if group_names:
+            device["suggested_area"] = group_names[0]
         
         if device_type in ["Position", "PositionAndAngle"]:
             level_datapoint = self._find_datapoint(device, "level")

@@ -91,6 +91,7 @@ class JunghomeLight(CoordinatorEntity, LightEntity):
         self._switch_id = switch_id
         self._brightness_id = brightness_id
         
+        # Per JUNG HOME documentation, device_id is unique across installations and device resets.
         self._attr_unique_id = f"{self._device_id}"
         self._attr_name = device["label"]
 
@@ -105,16 +106,23 @@ class JunghomeLight(CoordinatorEntity, LightEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
+        device = self.coordinator.get_device_by_id(self._device_id)
+        if device:
+            label = device.get("label")
+            if label and label != self._attr_name:
+                self._attr_name = label
         self.async_write_ha_state()
 
     @property
     def device_info(self) -> DeviceInfo:
         """Return device info."""
+        device = self.coordinator.get_device_by_id(self._device_id) or {}
         return DeviceInfo(
             identifiers={(DOMAIN, self._device_id)},
             name=self._attr_name,
             model="Light",
             manufacturer=MANUFACTURER,
+            suggested_area=device.get("suggested_area"),
         )
 
     @property
@@ -124,6 +132,13 @@ class JunghomeLight(CoordinatorEntity, LightEntity):
         if device:
             return device.get("available", True)
         return False
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Return extra attributes."""
+        device = self.coordinator.get_device_by_id(self._device_id) or {}
+        group_names = device.get("group_names", [])
+        return {"groups": group_names} if group_names else {}
 
 
     # GET ON/OFF         
@@ -194,5 +209,3 @@ class JunghomeLight(CoordinatorEntity, LightEntity):
         response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
         if response is None: 
             _LOGGER.error("Failed to turn off light %s", self._device_id)
-
-

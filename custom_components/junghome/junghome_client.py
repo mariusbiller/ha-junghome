@@ -75,6 +75,30 @@ class JunghomeGateway:
         _LOGGER.debug(f"Hub config response: {config}")
         return config
 
+    @staticmethod
+    async def request_groups(host: str, token: str):
+        """
+        Requests group definitions from the api-junghome using the specified host and token.
+
+        Parameters:
+        host (str): hostename or IP address of the API host, excluding 'https://'.
+        token (str): The authentication token for API access.
+
+        Returns:
+        list or None: A list of group dictionaries if the request is successful, None otherwise.
+        """
+        url = f"https://{host}/api/junghome/groups/"
+        _LOGGER.info(f"Requesting groups from {url}...")
+
+        groups = await JunghomeGateway.http_get_request(url, token)
+
+        if groups is None:
+            _LOGGER.error("Failed to retrieve JUNG HOME groups.")
+            return None
+
+        _LOGGER.debug(f"Groups response: {groups}")
+        return groups
+
     # ==================================================================================
     # HTTP HELPER FUNCTIONS
     # ==================================================================================

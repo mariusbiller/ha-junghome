@@ -87,7 +87,16 @@ async def async_setup_entry(
                         if quantity_label and quantity_unit:
                             sensor_type = coordinator._map_quantity_label_to_sensor_type(quantity_label)
                             if sensor_type:
-                                sensors.append(JunghomeEnergySensor(coordinator, device, sensor_type, quantity_label, quantity_unit))
+                                sensors.append(
+                                    JunghomeEnergySensor(
+                                        coordinator,
+                                        device,
+                                        datapoint.get("id"),
+                                        sensor_type,
+                                        quantity_label,
+                                        quantity_unit,
+                                    )
+                                )
                                 _LOGGER.debug(
                                     "Creating sensor for device %s: %s (label: %s, unit: %s)",
                                     device["id"],
@@ -132,20 +141,29 @@ class JunghomeEnergySensor(CoordinatorEntity, SensorEntity):
     SENSOR_TYPES = {
         "sensor_device_input_power": ("Present Device Input Power", SensorDeviceClass.POWER),
         "sensor_active_power_loadside": ("Active Power Loadside", SensorDeviceClass.POWER),
-        "sensor_output_voltage": ("Present Output Voltage", SensorDeviceClass.VOLTAGE),
-        "sensor_output_current": ("Present Output Current", SensorDeviceClass.CURRENT),
     }
 
-    def __init__(self, coordinator, device, sensor_type, quantity_label, quantity_unit) -> None:
+    def __init__(
+        self,
+        coordinator,
+        device,
+        datapoint_id,
+        sensor_type,
+        quantity_label,
+        quantity_unit,
+    ) -> None:
         """Initialize a Jung Home energy sensor."""
         super().__init__(coordinator)
         _LOGGER.debug("Initializing energy sensor for device %s, type %s, quantity_label: %s, quantity_unit: %s", device["id"], sensor_type, quantity_label, quantity_unit)
         self._device_id = device["id"]
+        self._datapoint_id = datapoint_id
         self._sensor_type = sensor_type
         self._quantity_label = quantity_label.lower().replace(" ", "_").replace("/", "_")
         self._device_label = device["label"].lower().replace(" ", "_").replace("/", "_")
-        self._attr_unique_id = f"{self._device_label}_{self._quantity_label}"
-        self._attr_name = f"{device['label']} {quantity_label.strip()}"
+        self._quantity_label_display = quantity_label.strip()
+        # Per JUNG HOME documentation, device_id is unique across installations and device resets.
+        self._attr_unique_id = f"{self._device_id}_{self._datapoint_id}"
+        self._attr_name = f"{device['label']} {self._quantity_label_display}"
         _LOGGER.debug("_attr_device_class: %s", self.SENSOR_TYPES[sensor_type])
         self._attr_device_class = self.SENSOR_TYPES[sensor_type][1]
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -154,6 +172,13 @@ class JunghomeEnergySensor(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
+        device = self.coordinator.get_device_by_id(self._device_id)
+        if device:
+            label = device.get("label")
+            if label:
+                new_name = f"{label} {self._quantity_label_display}"
+                if new_name != self._attr_name:
+                    self._attr_name = new_name
         self.async_write_ha_state()
 
     @property
@@ -166,6 +191,7 @@ class JunghomeEnergySensor(CoordinatorEntity, SensorEntity):
                 name=device["label"],
                 model=device.get("type", "Unknown"),
                 manufacturer=MANUFACTURER,
+                suggested_area=device.get("suggested_area"),
             )
         return None
 
@@ -179,6 +205,13 @@ class JunghomeEnergySensor(CoordinatorEntity, SensorEntity):
             _LOGGER.debug("Sensor %s value: %s", self._attr_unique_id, value)
             return value
         return 0
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Return extra attributes."""
+        device = self.coordinator.get_device_by_id(self._device_id) or {}
+        group_names = device.get("group_names", [])
+        return {"groups": group_names} if group_names else {}
 
     @property
     def native_unit_of_measurement(self):
@@ -206,8 +239,9 @@ class JunghomeHubSensorBase(CoordinatorEntity, SensorEntity):
     def device_info(self) -> DeviceInfo:
         """Return device info."""
         config = self.coordinator.data or {}
+        hub_id = config.get("ip_address") or "hub"
         return DeviceInfo(
-            identifiers={(DOMAIN, "hub")},
+            identifiers={(DOMAIN, hub_id)},
             name="Jung Home Gateway",
             model="Gateway",
             manufacturer=MANUFACTURER,
@@ -279,15 +313,12 @@ class JunghomeIPAddressSensor(JunghomeHubSensorBase):
             "subnet": config.get("ip_subnet", ""),
             "dns": config.get("ip_dns", ""),
             "gateway": config.get("ip_gateway", ""),
-            "mac_address": config.get("ip_mac", ""),
         }
 
     @property
     def icon(self) -> str:
         """Return the icon for the sensor."""
         return "mdi:ip-network"
-
-
 
 
 class JunghomeVersionSensor(JunghomeHubSensorBase):
@@ -317,5 +348,3 @@ class JunghomeVersionSensor(JunghomeHubSensorBase):
     def icon(self) -> str:
         """Return the icon for the sensor."""
         return "mdi:information"
-
-
