@@ -333,8 +333,6 @@ class JunghomeCoordinator(DataUpdateCoordinator):
         label_map = {
             "Present Device Input Power": "sensor_device_input_power",
             "Active Power Loadside": "sensor_active_power_loadside",
-            "Present Output Current": "sensor_output_current",
-            "Present Output Voltage": "sensor_output_voltage",
         }
         return label_map.get(label.strip())
 

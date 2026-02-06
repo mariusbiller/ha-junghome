@@ -91,6 +91,7 @@ class JunghomeLight(CoordinatorEntity, LightEntity):
         self._switch_id = switch_id
         self._brightness_id = brightness_id
         
+        # Per JUNG HOME documentation, device_id is unique across installations and device resets.
         self._attr_unique_id = f"{self._device_id}"
         self._attr_name = device["label"]
 
@@ -194,5 +195,4 @@ class JunghomeLight(CoordinatorEntity, LightEntity):
         response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
         if response is None: 
             _LOGGER.error("Failed to turn off light %s", self._device_id)
-
 

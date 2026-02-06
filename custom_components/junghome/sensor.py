@@ -141,8 +141,6 @@ class JunghomeEnergySensor(CoordinatorEntity, SensorEntity):
     SENSOR_TYPES = {
         "sensor_device_input_power": ("Present Device Input Power", SensorDeviceClass.POWER),
         "sensor_active_power_loadside": ("Active Power Loadside", SensorDeviceClass.POWER),
-        "sensor_output_voltage": ("Present Output Voltage", SensorDeviceClass.VOLTAGE),
-        "sensor_output_current": ("Present Output Current", SensorDeviceClass.CURRENT),
     }
 
     def __init__(
@@ -162,6 +160,7 @@ class JunghomeEnergySensor(CoordinatorEntity, SensorEntity):
         self._sensor_type = sensor_type
         self._quantity_label = quantity_label.lower().replace(" ", "_").replace("/", "_")
         self._device_label = device["label"].lower().replace(" ", "_").replace("/", "_")
+        # Per JUNG HOME documentation, device_id is unique across installations and device resets.
         self._attr_unique_id = f"{self._device_id}_{self._datapoint_id}"
         self._attr_name = f"{device['label']} {quantity_label.strip()}"
         _LOGGER.debug("_attr_device_class: %s", self.SENSOR_TYPES[sensor_type])
@@ -335,4 +334,3 @@ class JunghomeVersionSensor(JunghomeHubSensorBase):
     def icon(self) -> str:
         """Return the icon for the sensor."""
         return "mdi:information"
-

@@ -75,6 +75,7 @@ class JunghomeSwitch(CoordinatorEntity, SwitchEntity):
         super().__init__(coordinator)
         self._device_id = device["id"]
         self._switch_id = switch_id
+        # Per JUNG HOME documentation, device_id is unique across installations and device resets.
         self._attr_unique_id = f"{self._device_id}"
         self._attr_name = device["label"]
 

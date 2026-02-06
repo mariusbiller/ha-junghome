@@ -86,6 +86,7 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
         self._device_id = device["id"]
         self._state_id = state_id
         
+        # Per JUNG HOME documentation, device_id is unique across installations and device resets.
         self._attr_unique_id = f"{self._device_id}"
         self._attr_name = device["label"]
 
@@ -208,6 +209,5 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
                 _LOGGER.error("Failed to stop cover %s", self._device_id)
         else:
             _LOGGER.debug("Cover %s is not moving, no stop command sent", self._device_id)
-
 
 
