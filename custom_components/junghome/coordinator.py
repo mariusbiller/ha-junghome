@@ -79,6 +79,10 @@ class JunghomeCoordinator(DataUpdateCoordinator):
             _LOGGER.info("No initial WebSocket data, falling back to HTTP fetch")
             await self._refresh_device_data()
 
+        # If no group data received, fall back to HTTP for initial setup
+        if not self._groups:
+            await self._refresh_group_data()
+
     async def _refresh_device_data(self) -> None:
         """Refresh device data from the Jung Home hub."""
         try:
@@ -91,6 +95,20 @@ class JunghomeCoordinator(DataUpdateCoordinator):
                 _LOGGER.info("Device data refreshed via HTTP: %d devices", len(devices))
         except Exception as err:
             _LOGGER.warning("Failed to refresh device data via HTTP: %s", err)
+            raise
+
+    async def _refresh_group_data(self) -> None:
+        """Refresh group data from the Jung Home hub."""
+        try:
+            groups = await asyncio.wait_for(
+                JunghomeGateway.request_groups(self.ip, self.token),
+                timeout=30.0
+            )
+            if groups:
+                self._groups = {group["id"]: group for group in groups}
+                _LOGGER.info("Group data refreshed via HTTP: %d groups", len(groups))
+        except Exception as err:
+            _LOGGER.warning("Failed to refresh group data via HTTP: %s", err)
             raise
 
     async def async_shutdown(self) -> None:
@@ -351,6 +369,18 @@ class JunghomeCoordinator(DataUpdateCoordinator):
         
         # Set default states based on current datapoint values
         device["available"] = True  # Default to available
+
+        # Attach group info (if available)
+        group_ids = device.get("parent_groups", []) or []
+        group_names = [
+            self._groups[group_id].get("name")
+            for group_id in group_ids
+            if group_id in self._groups and self._groups[group_id].get("name")
+        ]
+        device["group_ids"] = group_ids
+        device["group_names"] = group_names
+        if group_names:
+            device["suggested_area"] = group_names[0]
         
         if device_type in ["Position", "PositionAndAngle"]:
             level_datapoint = self._find_datapoint(device, "level")

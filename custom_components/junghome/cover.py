@@ -98,11 +98,13 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
     @property
     def device_info(self) -> DeviceInfo:
         """Return device info."""
+        device = self.coordinator.get_device_by_id(self._device_id) or {}
         return DeviceInfo(
             identifiers={(DOMAIN, self._device_id)},
             name=self._attr_name,
             model="WindowCover",
             manufacturer=MANUFACTURER,
+            suggested_area=device.get("suggested_area"),
         )
 
     @property
@@ -112,6 +114,13 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
         if device:
             return device.get("available", True)
         return False
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Return extra attributes."""
+        device = self.coordinator.get_device_by_id(self._device_id) or {}
+        group_names = device.get("group_names", [])
+        return {"groups": group_names} if group_names else {}
 
 
 
@@ -209,5 +218,4 @@ class JunghomeCover(CoordinatorEntity, CoverEntity):
                 _LOGGER.error("Failed to stop cover %s", self._device_id)
         else:
             _LOGGER.debug("Cover %s is not moving, no stop command sent", self._device_id)
-
 

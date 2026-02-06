@@ -183,6 +183,7 @@ class JunghomeEnergySensor(CoordinatorEntity, SensorEntity):
                 name=device["label"],
                 model=device.get("type", "Unknown"),
                 manufacturer=MANUFACTURER,
+                suggested_area=device.get("suggested_area"),
             )
         return None
 
@@ -196,6 +197,13 @@ class JunghomeEnergySensor(CoordinatorEntity, SensorEntity):
             _LOGGER.debug("Sensor %s value: %s", self._attr_unique_id, value)
             return value
         return 0
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Return extra attributes."""
+        device = self.coordinator.get_device_by_id(self._device_id) or {}
+        group_names = device.get("group_names", [])
+        return {"groups": group_names} if group_names else {}
 
     @property
     def native_unit_of_measurement(self):

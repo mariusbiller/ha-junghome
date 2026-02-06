@@ -111,11 +111,13 @@ class JunghomeLight(CoordinatorEntity, LightEntity):
     @property
     def device_info(self) -> DeviceInfo:
         """Return device info."""
+        device = self.coordinator.get_device_by_id(self._device_id) or {}
         return DeviceInfo(
             identifiers={(DOMAIN, self._device_id)},
             name=self._attr_name,
             model="Light",
             manufacturer=MANUFACTURER,
+            suggested_area=device.get("suggested_area"),
         )
 
     @property
@@ -125,6 +127,13 @@ class JunghomeLight(CoordinatorEntity, LightEntity):
         if device:
             return device.get("available", True)
         return False
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Return extra attributes."""
+        device = self.coordinator.get_device_by_id(self._device_id) or {}
+        group_names = device.get("group_names", [])
+        return {"groups": group_names} if group_names else {}
 
 
     # GET ON/OFF         
@@ -195,4 +204,3 @@ class JunghomeLight(CoordinatorEntity, LightEntity):
         response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
         if response is None: 
             _LOGGER.error("Failed to turn off light %s", self._device_id)
-
