@@ -87,7 +87,16 @@ async def async_setup_entry(
                         if quantity_label and quantity_unit:
                             sensor_type = coordinator._map_quantity_label_to_sensor_type(quantity_label)
                             if sensor_type:
-                                sensors.append(JunghomeEnergySensor(coordinator, device, sensor_type, quantity_label, quantity_unit))
+                                sensors.append(
+                                    JunghomeEnergySensor(
+                                        coordinator,
+                                        device,
+                                        datapoint.get("id"),
+                                        sensor_type,
+                                        quantity_label,
+                                        quantity_unit,
+                                    )
+                                )
                                 _LOGGER.debug(
                                     "Creating sensor for device %s: %s (label: %s, unit: %s)",
                                     device["id"],
@@ -136,15 +145,24 @@ class JunghomeEnergySensor(CoordinatorEntity, SensorEntity):
         "sensor_output_current": ("Present Output Current", SensorDeviceClass.CURRENT),
     }
 
-    def __init__(self, coordinator, device, sensor_type, quantity_label, quantity_unit) -> None:
+    def __init__(
+        self,
+        coordinator,
+        device,
+        datapoint_id,
+        sensor_type,
+        quantity_label,
+        quantity_unit,
+    ) -> None:
         """Initialize a Jung Home energy sensor."""
         super().__init__(coordinator)
         _LOGGER.debug("Initializing energy sensor for device %s, type %s, quantity_label: %s, quantity_unit: %s", device["id"], sensor_type, quantity_label, quantity_unit)
         self._device_id = device["id"]
+        self._datapoint_id = datapoint_id
         self._sensor_type = sensor_type
         self._quantity_label = quantity_label.lower().replace(" ", "_").replace("/", "_")
         self._device_label = device["label"].lower().replace(" ", "_").replace("/", "_")
-        self._attr_unique_id = f"{self._device_label}_{self._quantity_label}"
+        self._attr_unique_id = f"{self._device_id}_{self._datapoint_id}"
         self._attr_name = f"{device['label']} {quantity_label.strip()}"
         _LOGGER.debug("_attr_device_class: %s", self.SENSOR_TYPES[sensor_type])
         self._attr_device_class = self.SENSOR_TYPES[sensor_type][1]
@@ -317,5 +335,4 @@ class JunghomeVersionSensor(JunghomeHubSensorBase):
     def icon(self) -> str:
         """Return the icon for the sensor."""
         return "mdi:information"
-
 
