@@ -60,8 +60,9 @@ class JunghomeHubBinarySensorBase(CoordinatorEntity, BinarySensorEntity):
     def device_info(self) -> DeviceInfo:
         """Return device info."""
         config = self.coordinator.data or {}
+        hub_id = config.get("ip_address") or "hub"
         return DeviceInfo(
-            identifiers={(DOMAIN, "hub")},
+            identifiers={(DOMAIN, hub_id)},
             name="Jung Home Gateway",
             model="Gateway",
             manufacturer=MANUFACTURER,

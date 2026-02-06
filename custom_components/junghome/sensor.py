@@ -223,8 +223,9 @@ class JunghomeHubSensorBase(CoordinatorEntity, SensorEntity):
     def device_info(self) -> DeviceInfo:
         """Return device info."""
         config = self.coordinator.data or {}
+        hub_id = config.get("ip_address") or "hub"
         return DeviceInfo(
-            identifiers={(DOMAIN, "hub")},
+            identifiers={(DOMAIN, hub_id)},
             name="Jung Home Gateway",
             model="Gateway",
             manufacturer=MANUFACTURER,
@@ -296,15 +297,12 @@ class JunghomeIPAddressSensor(JunghomeHubSensorBase):
             "subnet": config.get("ip_subnet", ""),
             "dns": config.get("ip_dns", ""),
             "gateway": config.get("ip_gateway", ""),
-            "mac_address": config.get("ip_mac", ""),
         }
 
     @property
     def icon(self) -> str:
         """Return the icon for the sensor."""
         return "mdi:ip-network"
-
-
 
 
 class JunghomeVersionSensor(JunghomeHubSensorBase):
