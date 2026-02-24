@@ -54,9 +54,14 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
         if user_input is not None:
             try:
+                unique_id = user_input[CONF_IP_ADDRESS].strip().lower()
+                await self.async_set_unique_id(unique_id)
+                self._abort_if_unique_id_configured()
+
                 info = await validate_input(self.hass, user_input)
                 # Store the trimmed token
                 clean_data = user_input.copy()
+                clean_data[CONF_IP_ADDRESS] = clean_data[CONF_IP_ADDRESS].strip()
                 clean_data[CONF_TOKEN] = clean_data[CONF_TOKEN].strip()
                 return self.async_create_entry(title=info["title"], data=clean_data)
             except CannotConnect:
