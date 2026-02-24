@@ -179,7 +179,13 @@ class JunghomeEnergySensor(CoordinatorEntity, SensorEntity):
                 new_name = f"{label} {self._quantity_label_display}"
                 if new_name != self._attr_name:
                     self._attr_name = new_name
+            self.coordinator.apply_device_area(device)
         self.async_write_ha_state()
+
+    async def async_added_to_hass(self) -> None:
+        """Run when entity is added to Home Assistant."""
+        await super().async_added_to_hass()
+        self.coordinator.apply_device_area(self.coordinator.get_device_by_id(self._device_id))
 
     @property
     def device_info(self) -> DeviceInfo:

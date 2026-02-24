@@ -87,7 +87,13 @@ class JunghomeSwitch(CoordinatorEntity, SwitchEntity):
             label = device.get("label")
             if label and label != self._attr_name:
                 self._attr_name = label
+            self.coordinator.apply_device_area(device)
         self.async_write_ha_state()
+
+    async def async_added_to_hass(self) -> None:
+        """Run when entity is added to Home Assistant."""
+        await super().async_added_to_hass()
+        self.coordinator.apply_device_area(self.coordinator.get_device_by_id(self._device_id))
 
     @property
     def device_info(self) -> DeviceInfo:

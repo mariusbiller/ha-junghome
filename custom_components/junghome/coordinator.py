@@ -4,7 +4,7 @@ import logging
 from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
-from .const import CONF_IP_ADDRESS, CONF_TOKEN
+from .const import CONF_IP_ADDRESS, CONF_TOKEN, DOMAIN
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -122,6 +122,7 @@ class JunghomeCoordinator(DataUpdateCoordinator):
             
         elif data_type == "groups":
             self._groups = data
+            self.async_set_updated_data(await self._async_update_data())
             
         elif data_type == "scenes":
             self._scenes = data
@@ -356,12 +357,12 @@ class JunghomeCoordinator(DataUpdateCoordinator):
         device["available"] = True  # Default to available
 
         # Attach group info (if available)
-        group_ids = device.get("parent_groups", []) or []
-        group_names = [
-            self._groups[group_id].get("name")
-            for group_id in group_ids
-            if group_id in self._groups and self._groups[group_id].get("name")
-        ]
+        group_ids = self._extract_group_ids(device)
+        group_names = []
+        for group_id in group_ids:
+            group = self._groups.get(group_id) or self._groups.get(str(group_id))
+            if group and group.get("name"):
+                group_names.append(group["name"])
         device["group_ids"] = group_ids
         device["group_names"] = group_names
         if group_names:
@@ -469,6 +470,68 @@ class JunghomeCoordinator(DataUpdateCoordinator):
             if datapoint.get("type") == datapoint_type:
                 return datapoint
         return None
+
+    def _extract_group_ids(self, device: dict) -> list:
+        """Extract group IDs from variant payload shapes."""
+        raw_group_ids = (
+            device.get("parent_groups")
+            or device.get("parentGroups")
+            or device.get("groups")
+            or device.get("group_ids")
+            or []
+        )
+
+        if isinstance(raw_group_ids, str):
+            return [raw_group_ids]
+        if isinstance(raw_group_ids, dict):
+            return [group_id for group_id in raw_group_ids.keys()]
+        if not isinstance(raw_group_ids, (list, tuple, set)):
+            return []
+
+        group_ids = []
+        for item in raw_group_ids:
+            if isinstance(item, dict):
+                group_id = item.get("id")
+                if group_id is not None:
+                    group_ids.append(group_id)
+            elif item is not None:
+                group_ids.append(item)
+        return group_ids
+
+    def apply_device_area(self, device: dict | None) -> None:
+        """Create/assign HA area for a device based on suggested_area."""
+        if not device:
+            return
+
+        suggested_area = device.get("suggested_area")
+        device_id = device.get("id")
+        if not suggested_area or not device_id:
+            return
+
+        try:
+            from homeassistant.helpers import area_registry as ar
+            from homeassistant.helpers import device_registry as dr
+
+            area_registry = ar.async_get(self.hass)
+            device_registry = dr.async_get(self.hass)
+
+            area_entry = area_registry.async_get_area_by_name(suggested_area)
+            if area_entry is None:
+                area_entry = area_registry.async_create(suggested_area)
+
+            device_entry = device_registry.async_get_device(
+                identifiers={(DOMAIN, device_id)},
+                connections=set(),
+            )
+            if device_entry and device_entry.area_id != area_entry.id:
+                device_registry.async_update_device(device_entry.id, area_id=area_entry.id)
+        except Exception as err:
+            _LOGGER.debug(
+                "Failed to apply area '%s' for device '%s': %s",
+                suggested_area,
+                device_id,
+                err,
+            )
 
     @property
     def devices(self) -> list | None:
