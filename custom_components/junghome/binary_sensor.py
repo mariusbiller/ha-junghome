@@ -1,8 +1,6 @@
 """Platform for binary sensor integration."""
 from __future__ import annotations
-import asyncio
 import logging
-from datetime import timedelta
 
 from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorDeviceClass
 from homeassistant.core import HomeAssistant, callback

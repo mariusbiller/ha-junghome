@@ -2,7 +2,7 @@ import aiohttp
 import asyncio
 import json
 import logging
-from typing import Callable, Optional
+from typing import Callable
 
 # Set up logging for this module
 _LOGGER = logging.getLogger(__name__)

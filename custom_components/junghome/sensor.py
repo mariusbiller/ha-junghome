@@ -9,10 +9,11 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
-from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, MANUFACTURER
 from . import JunghomeConfigEntry
+from .datapoints import extract_quantity_label_unit, iter_datapoints_by_type
+from .entity import JunghomeDeviceEntity
 from .junghome_client import JunghomeGateway
 
 _LOGGER = logging.getLogger(__name__)
@@ -83,26 +84,15 @@ async def async_setup_entry(
             if device["type"] not in ["Socket", "SocketEnergy"]:
                 continue
 
-            for datapoint in device.get("datapoints", []):
-                if datapoint["type"] != "quantity":
-                    continue
-
+            for datapoint in iter_datapoints_by_type(device, "quantity"):
                 datapoint_id = datapoint.get("id")
                 unique_id = f"{device['id']}_{datapoint_id}"
                 if not datapoint_id or unique_id in created_sensor_ids:
                     continue
 
-                quantity_label = None
-                quantity_unit = None
-                for value_item in datapoint.get("values", []):
-                    key = value_item.get("key")
-                    value = value_item.get("value")
-                    if value is None:
-                        continue
-                    if key == "quantity_label":
-                        quantity_label = value.strip()
-                    elif key == "quantity_unit":
-                        quantity_unit = value.strip()
+                quantity_label, quantity_unit = extract_quantity_label_unit(
+                    datapoint.get("values", [])
+                )
 
                 if quantity_label and quantity_unit:
                     sensor_type = coordinator._map_quantity_label_to_sensor_type(quantity_label)
@@ -141,7 +131,7 @@ async def async_setup_entry(
     await add_new_sensors(devices)
 
 
-class JunghomeEnergySensor(CoordinatorEntity, SensorEntity):
+class JunghomeEnergySensor(JunghomeDeviceEntity, SensorEntity):
     """Jung Home energy sensor entity."""
 
     SENSOR_TYPES = {
@@ -164,8 +154,6 @@ class JunghomeEnergySensor(CoordinatorEntity, SensorEntity):
         self._device_id = device["id"]
         self._datapoint_id = datapoint_id
         self._sensor_type = sensor_type
-        self._quantity_label = quantity_label.lower().replace(" ", "_").replace("/", "_")
-        self._device_label = device["label"].lower().replace(" ", "_").replace("/", "_")
         self._quantity_label_display = quantity_label.strip()
         # Per JUNG HOME documentation, device_id is unique across installations and device resets.
         self._attr_unique_id = f"{self._device_id}_{self._datapoint_id}"
@@ -178,7 +166,7 @@ class JunghomeEnergySensor(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        device = self.coordinator.get_device_by_id(self._device_id)
+        device = self._get_device()
         if device:
             label = device.get("label")
             if label:
@@ -188,29 +176,15 @@ class JunghomeEnergySensor(CoordinatorEntity, SensorEntity):
             self.coordinator.apply_device_area(device)
         self.async_write_ha_state()
 
-    async def async_added_to_hass(self) -> None:
-        """Run when entity is added to Home Assistant."""
-        await super().async_added_to_hass()
-        self.coordinator.apply_device_area(self.coordinator.get_device_by_id(self._device_id))
-
     @property
     def device_info(self) -> DeviceInfo:
         """Return device info."""
-        device = self.coordinator.get_device_by_id(self._device_id)
-        if device:
-            return DeviceInfo(
-                identifiers={(DOMAIN, self._device_id)},
-                name=device["label"],
-                model=device.get("type", "Unknown"),
-                manufacturer=MANUFACTURER,
-                suggested_area=device.get("suggested_area"),
-            )
-        return None
+        return self._build_device_info(self._get_device().get("type", "Unknown"))
 
     @property
     def native_value(self):
         """Return the current value of the sensor."""
-        device = self.coordinator.get_device_by_id(self._device_id)
+        device = self._get_device()
         if device:
             states = device.get("states", {})
             value = states.get(self._sensor_type, {}).get("value", 0)
@@ -219,21 +193,9 @@ class JunghomeEnergySensor(CoordinatorEntity, SensorEntity):
         return 0
 
     @property
-    def extra_state_attributes(self) -> dict:
-        """Return extra attributes."""
-        device = self.coordinator.get_device_by_id(self._device_id) or {}
-        group_names = device.get("group_names", [])
-        return {"groups": group_names} if group_names else {}
-
-    @property
     def native_unit_of_measurement(self):
         """Return the unit of measurement."""
-        device = self.coordinator.get_device_by_id(self._device_id)
-        if device:
-            states = device.get("states", {})
-            unit = states.get(self._sensor_type, {}).get("unit", None)
-            return self._attr_native_unit_of_measurement
-        return None
+        return self._attr_native_unit_of_measurement
 
 
 class JunghomeHubSensorBase(CoordinatorEntity, SensorEntity):

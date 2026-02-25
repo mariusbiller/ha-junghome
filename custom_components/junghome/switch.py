@@ -5,11 +5,10 @@ import logging
 from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, MANUFACTURER
 from . import JunghomeConfigEntry
+from .datapoints import get_datapoint_id
+from .entity import JunghomeDeviceEntity
 from .junghome_client import JunghomeGateway
 
 _LOGGER = logging.getLogger(__name__)
@@ -33,21 +32,12 @@ async def async_setup_entry(
             if device["type"] not in ["Socket", "SocketEnergy"]:
                 continue
 
-            # Get the switch datapoint ID
-            switch_id = None
-            for datapoint in device.get("datapoints", []):
-                if datapoint.get("type") == "switch":
-                    switch_id = datapoint.get("id")
-                    break
+            switch_id = get_datapoint_id(device, "switch")
 
             if switch_id is None:
                 continue
 
-            # Create switch entity
-            if device["type"] == "SocketEnergy":
-                switches.append(JunghomeEnergySwitch(coordinator, device, switch_id))
-            else:
-                switches.append(JunghomeSwitch(coordinator, device, switch_id))
+            switches.append(JunghomeSwitch(coordinator, device, switch_id))
 
         if switches:
             _LOGGER.info("Adding %d new switch entities", len(switches))
@@ -65,7 +55,7 @@ async def async_setup_entry(
 #
 # SWITCH
 #
-class JunghomeSwitch(CoordinatorEntity, SwitchEntity):
+class JunghomeSwitch(JunghomeDeviceEntity, SwitchEntity):
     """Jung Home switch entity"""
 
     _attr_device_class = SwitchDeviceClass.OUTLET
@@ -82,45 +72,13 @@ class JunghomeSwitch(CoordinatorEntity, SwitchEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        device = self.coordinator.get_device_by_id(self._device_id)
-        if device:
-            label = device.get("label")
-            if label and label != self._attr_name:
-                self._attr_name = label
-            self.coordinator.apply_device_area(device)
+        self._sync_label_and_area()
         self.async_write_ha_state()
 
-    async def async_added_to_hass(self) -> None:
-        """Run when entity is added to Home Assistant."""
-        await super().async_added_to_hass()
-        self.coordinator.apply_device_area(self.coordinator.get_device_by_id(self._device_id))
-
     @property
-    def device_info(self) -> DeviceInfo:
+    def device_info(self):
         """Return device info."""
-        device = self.coordinator.get_device_by_id(self._device_id) or {}
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._device_id)},
-            name=self._attr_name,
-            model="Socket",
-            manufacturer=MANUFACTURER,
-            suggested_area=device.get("suggested_area"),
-        )
-
-    @property
-    def available(self) -> bool:
-        """Return True if entity is available."""
-        device = self.coordinator.get_device_by_id(self._device_id)
-        if device:
-            return device.get("available", True)
-        return False
-
-    @property
-    def extra_state_attributes(self) -> dict:
-        """Return extra attributes."""
-        device = self.coordinator.get_device_by_id(self._device_id) or {}
-        group_names = device.get("group_names", [])
-        return {"groups": group_names} if group_names else {}
+        return self._build_device_info("Socket")
 
     @property
     def is_on(self) -> bool:
@@ -145,12 +103,3 @@ class JunghomeSwitch(CoordinatorEntity, SwitchEntity):
         response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
         if response is None:
             _LOGGER.error("Failed to turn off switch %s", self._device_id)
-
-
-class JunghomeEnergySwitch(JunghomeSwitch):
-    """Jung Home energy monitoring switch entity."""
-
-    def __init__(self, coordinator, device, switch_id) -> None:
-        """Initialize a Jung Home Energy Switch."""
-        super().__init__(coordinator, device, switch_id)
-        self._device = device
