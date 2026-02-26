@@ -32,9 +32,10 @@ class JunghomeDeviceEntity(CoordinatorEntity):
     def _build_device_info(self, model: str | None = None) -> DeviceInfo:
         """Build common DeviceInfo payload."""
         device = self._get_device()
+        device_name = device.get("label") or self._attr_name
         return DeviceInfo(
             identifiers={(DOMAIN, self._device_id)},
-            name=self._attr_name,
+            name=device_name,
             model=model or self._device_model,
             manufacturer=MANUFACTURER,
             suggested_area=device.get("suggested_area"),
