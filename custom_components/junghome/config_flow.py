@@ -59,10 +59,23 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     # No options flow needed for WebSocket-based integration
 
+    def _is_configured_ip(self, ip_address: str) -> bool:
+        """Return True if the IP address is already configured."""
+        normalized_ip = ip_address.strip().lower()
+        for entry in self._async_current_entries():
+            entry_ip = str(entry.data.get(CONF_IP_ADDRESS, "")).strip().lower()
+            if entry.unique_id == normalized_ip or entry_ip == normalized_ip:
+                return True
+        return False
+
     def _get_data_schema(self, user_input: dict[str, Any] | None = None) -> vol.Schema:
         """Return the config form schema with discovery defaults applied."""
         suggested_values = dict(user_input or {})
-        if self._discovered_ip and CONF_IP_ADDRESS not in suggested_values:
+        if (
+            self._discovered_ip
+            and not self._is_configured_ip(self._discovered_ip)
+            and CONF_IP_ADDRESS not in suggested_values
+        ):
             suggested_values[CONF_IP_ADDRESS] = self._discovered_ip
         return self.add_suggested_values_to_schema(DATA_SCHEMA, suggested_values)
 
@@ -72,6 +85,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Store the discovered host and continue in the user step."""
         if host:
             self._discovered_ip = host.strip()
+            if self._is_configured_ip(self._discovered_ip):
+                return self.async_abort(reason="already_configured")
             await self.async_set_unique_id(self._discovered_ip.lower())
             self._abort_if_unique_id_configured()
         return await self.async_step_user()
