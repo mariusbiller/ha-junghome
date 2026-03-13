@@ -137,6 +137,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             try:
                 ip_address = user_input[CONF_IP_ADDRESS].strip()
+                if not ip_address:
+                    errors[CONF_IP_ADDRESS] = "invalid_ip"
+                    raise ValueError
                 ipaddress.ip_address(ip_address)
                 await self.async_set_unique_id(ip_address.lower())
                 self._abort_if_unique_id_configured()
@@ -145,8 +148,6 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self._registration_error = None
                 self._registration_task = None
                 return await self.async_step_token_register()
-            except InvalidIP:
-                errors[CONF_IP_ADDRESS] = "invalid_ip"
             except ValueError:
                 errors[CONF_IP_ADDRESS] = "invalid_ip"
             except Exception:
@@ -191,9 +192,16 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             try:
                 ip_address = user_input[CONF_IP_ADDRESS].strip()
+                token = user_input[CONF_TOKEN].strip()
+                if not ip_address:
+                    errors[CONF_IP_ADDRESS] = "invalid_ip"
+                if not token:
+                    errors[CONF_TOKEN] = "invalid_token"
+                if errors:
+                    raise ValueError
                 clean_data = {
                     CONF_IP_ADDRESS: ip_address,
-                    CONF_TOKEN: user_input[CONF_TOKEN].strip(),
+                    CONF_TOKEN: token,
                 }
                 self._ip_address = ip_address
                 info = await validate_input(self.hass, clean_data)
@@ -204,6 +212,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors[CONF_TOKEN] = "invalid_token"
             except InvalidIP:
                 errors[CONF_IP_ADDRESS] = "invalid_ip"
+            except ValueError:
+                pass
             except Exception:
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
