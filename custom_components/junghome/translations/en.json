@@ -3,13 +3,13 @@
         "step": {
             "user": {
                 "title": "Jung Home Integration Setup",
-                "description": "Enter your Jung Home hub connection details. This integration uses WebSocket for real-time updates.",
+                "description": "Enter your Jung Home hub connection details. Ensure the gateway IP address stays the same, for example by creating a DHCP reservation in your router.",
                 "data": {
                     "ip": "Hub IP Address",
                     "token": "Authentication Token"
                 },
                 "data_description": {
-                    "ip": "IP address or hostname of your Jung Home hub/gateway",
+                    "ip": "IP address of your Jung Home hub/gateway",
                     "token": "API authentication token for accessing the Jung Home system"
                 }
             }
