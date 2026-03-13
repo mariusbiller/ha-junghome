@@ -99,6 +99,45 @@ class JunghomeGateway:
         _LOGGER.debug(f"Groups response: {groups}")
         return groups
 
+    @staticmethod
+    async def request_registration_token(host: str, user_name: str):
+        """
+        Request a new registration token from the gateway.
+
+        The request can remain open for up to three minutes while waiting for the
+        user to confirm registration on the gateway.
+        """
+        url = f"https://{host}/api/junghome/register"
+        headers = {
+            "accept": "application/json",
+            "Content-Type": "application/json",
+        }
+        payload = {"user_name": user_name}
+
+        _LOGGER.info("Requesting registration token from %s", url)
+
+        timeout = aiohttp.ClientTimeout(total=185)
+        try:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(
+                    url, headers=headers, json=payload, ssl=False
+                ) as response:
+                    response.raise_for_status()
+                    data = await response.json()
+        except asyncio.TimeoutError:
+            _LOGGER.warning("Registration token request to %s timed out", url)
+            return None
+        except aiohttp.ClientError as err:
+            _LOGGER.error("Registration token request failed for %s: %s", url, err)
+            return None
+
+        token = data.get("token")
+        if not token:
+            _LOGGER.warning("Registration response from %s did not include a token", url)
+            return None
+
+        return str(token).strip()
+
     # ==================================================================================
     # HTTP HELPER FUNCTIONS
     # ==================================================================================

@@ -14,12 +14,16 @@ from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from .const import DOMAIN  # pylint:disable=unused-import
 from .const import CONF_IP_ADDRESS, CONF_TOKEN
 from .hub import Hub
+from .junghome_client import JunghomeGateway
 
 _LOGGER = logging.getLogger(__name__)
 
 
-DATA_SCHEMA = vol.Schema({
+IP_SCHEMA = vol.Schema({
     vol.Required(CONF_IP_ADDRESS): cv.string,
+})
+
+TOKEN_SCHEMA = vol.Schema({
     vol.Required(CONF_TOKEN): cv.string,
 })
 
@@ -56,6 +60,10 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         """Initialize the config flow."""
         self._discovered_ip: str | None = None
+        self._ip_address: str | None = None
+        self._suggested_token: str | None = None
+        self._registration_error: str | None = None
+        self._registration_task = None
 
     # No options flow needed for WebSocket-based integration
 
@@ -68,8 +76,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return True
         return False
 
-    def _get_data_schema(self, user_input: dict[str, Any] | None = None) -> vol.Schema:
-        """Return the config form schema with discovery defaults applied."""
+    def _get_ip_schema(self, user_input: dict[str, Any] | None = None) -> vol.Schema:
+        """Return the IP step schema with discovery defaults applied."""
         suggested_values = dict(user_input or {})
         if (
             self._discovered_ip
@@ -77,7 +85,24 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             and CONF_IP_ADDRESS not in suggested_values
         ):
             suggested_values[CONF_IP_ADDRESS] = self._discovered_ip
-        return self.add_suggested_values_to_schema(DATA_SCHEMA, suggested_values)
+        return self.add_suggested_values_to_schema(IP_SCHEMA, suggested_values)
+
+    def _get_token_schema(self, user_input: dict[str, Any] | None = None) -> vol.Schema:
+        """Return the token step schema."""
+        suggested_values = dict(user_input or {})
+        if self._suggested_token and CONF_TOKEN not in suggested_values:
+            suggested_values[CONF_TOKEN] = self._suggested_token
+        return self.add_suggested_values_to_schema(TOKEN_SCHEMA, suggested_values)
+
+    async def _async_register_token(self) -> None:
+        """Request a token from the gateway after the user presses the button."""
+        self._registration_error = None
+        self._suggested_token = await JunghomeGateway.request_registration_token(
+            self._ip_address,
+            "home assistant",
+        )
+        if self._suggested_token is None:
+            self._registration_error = "register_failed"
 
     async def _async_handle_discovery(
         self, host: str | None
@@ -104,32 +129,85 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return await self._async_handle_discovery(discovery_info.host)
 
     async def async_step_user(self, user_input=None):
-        """Handle the initial step."""
+        """Handle the IP address step."""
         errors = {}
         if user_input is not None:
             try:
-                unique_id = user_input[CONF_IP_ADDRESS].strip().lower()
-                await self.async_set_unique_id(unique_id)
+                ip_address = user_input[CONF_IP_ADDRESS].strip()
+                ipaddress.ip_address(ip_address)
+                await self.async_set_unique_id(ip_address.lower())
                 self._abort_if_unique_id_configured()
-
-                info = await validate_input(self.hass, user_input)
-                # Store the trimmed token
-                clean_data = user_input.copy()
-                clean_data[CONF_IP_ADDRESS] = clean_data[CONF_IP_ADDRESS].strip()
-                clean_data[CONF_TOKEN] = clean_data[CONF_TOKEN].strip()
-                return self.async_create_entry(title=info["title"], data=clean_data)
-            except CannotConnect:
-                errors["base"] = "cannot_connect"
+                self._ip_address = ip_address
+                self._suggested_token = None
+                self._registration_error = None
+                self._registration_task = None
+                return await self.async_step_token_register()
             except InvalidIP:
                 errors[CONF_IP_ADDRESS] = "invalid_ip"
-            except InvalidToken:
-                errors[CONF_TOKEN] = "invalid_token"
+            except ValueError:
+                errors[CONF_IP_ADDRESS] = "invalid_ip"
             except Exception:
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
 
         return self.async_show_form(
-            step_id="user", data_schema=self._get_data_schema(user_input), errors=errors
+            step_id="user", data_schema=self._get_ip_schema(user_input), errors=errors
+        )
+
+    async def async_step_token_register(self, user_input=None):
+        """Wait for the automatic gateway registration request to complete."""
+        if self._ip_address is None:
+            return await self.async_step_user()
+
+        if self._registration_task is None:
+            self._registration_task = self.hass.async_create_task(
+                self._async_register_token()
+            )
+        if not self._registration_task.done():
+            return self.async_show_progress(
+                step_id="token_register",
+                progress_action="press_gateway_button",
+                progress_task=self._registration_task,
+                description_placeholders={"ip_address": self._ip_address},
+            )
+
+        await self._registration_task
+        self._registration_task = None
+        return self.async_show_progress_done(next_step_id="token")
+
+    async def async_step_token(self, user_input=None):
+        """Handle the token step."""
+        if self._ip_address is None:
+            return await self.async_step_user()
+
+        errors = {}
+        if self._registration_error:
+            errors["base"] = self._registration_error
+            self._registration_error = None
+
+        if user_input is not None:
+            try:
+                clean_data = {
+                    CONF_IP_ADDRESS: self._ip_address,
+                    CONF_TOKEN: user_input[CONF_TOKEN].strip(),
+                }
+                info = await validate_input(self.hass, clean_data)
+                return self.async_create_entry(title=info["title"], data=clean_data)
+            except CannotConnect:
+                errors["base"] = "cannot_connect"
+            except InvalidToken:
+                errors[CONF_TOKEN] = "invalid_token"
+            except InvalidIP:
+                errors["base"] = "invalid_ip"
+            except Exception:
+                _LOGGER.exception("Unexpected exception")
+                errors["base"] = "unknown"
+
+        return self.async_show_form(
+            step_id="token",
+            data_schema=self._get_token_schema(user_input),
+            errors=errors,
+            description_placeholders={"ip_address": self._ip_address},
         )
 
 
