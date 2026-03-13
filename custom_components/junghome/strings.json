@@ -13,25 +13,27 @@
       },
       "token": {
         "title": "JUNG HOME Authentication",
-        "description": "Enter the authentication token for the JUNG HOME gateway at {ip_address}.",
+        "description": "Enter the IP address and authentication token for your JUNG HOME gateway.",
         "data": {
+          "ip": "Hub IP Address",
           "token": "Authentication Token"
         },
         "data_description": {
+          "ip": "IP address of your JUNG HOME gateway",
           "token": "API authentication token for accessing the JUNG HOME system"
         }
       }
     },
     "error": {
-      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
+      "cannot_connect": "Unable to connect to the JUNG HOME gateway",
       "invalid_ip": "Invalid IP address format",
       "invalid_token": "Authentication token cannot be empty",
-      "register_failed": "Automatic token request failed. Press the gateway button and try again, or enter the token manually.",
+      "register_failed": "Automatic token request failed. Enter the token manually.",
       "invalid_input": "Invalid input provided",
       "unknown": "[%key:common::config_flow::error::unknown%]"
     },
     "progress": {
-      "press_gateway_button": "Press the button on your JUNG HOME gateway. The token request can take up to 3 minutes."
+      "press_gateway_button": "Press the button on your JUNG HOME gateway within 3 minutes to allow Home Assistant access."
     },
     "abort": {
       "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"

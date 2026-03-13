@@ -24,6 +24,7 @@ IP_SCHEMA = vol.Schema({
 })
 
 TOKEN_SCHEMA = vol.Schema({
+    vol.Required(CONF_IP_ADDRESS): cv.string,
     vol.Required(CONF_TOKEN): cv.string,
 })
 
@@ -90,6 +91,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def _get_token_schema(self, user_input: dict[str, Any] | None = None) -> vol.Schema:
         """Return the token step schema."""
         suggested_values = dict(user_input or {})
+        if self._ip_address and CONF_IP_ADDRESS not in suggested_values:
+            suggested_values[CONF_IP_ADDRESS] = self._ip_address
         if self._suggested_token and CONF_TOKEN not in suggested_values:
             suggested_values[CONF_TOKEN] = self._suggested_token
         return self.add_suggested_values_to_schema(TOKEN_SCHEMA, suggested_values)
@@ -187,10 +190,12 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             try:
+                ip_address = user_input[CONF_IP_ADDRESS].strip()
                 clean_data = {
-                    CONF_IP_ADDRESS: self._ip_address,
+                    CONF_IP_ADDRESS: ip_address,
                     CONF_TOKEN: user_input[CONF_TOKEN].strip(),
                 }
+                self._ip_address = ip_address
                 info = await validate_input(self.hass, clean_data)
                 return self.async_create_entry(title=info["title"], data=clean_data)
             except CannotConnect:
@@ -198,7 +203,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except InvalidToken:
                 errors[CONF_TOKEN] = "invalid_token"
             except InvalidIP:
-                errors["base"] = "invalid_ip"
+                errors[CONF_IP_ADDRESS] = "invalid_ip"
             except Exception:
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"

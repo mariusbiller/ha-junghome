@@ -116,7 +116,12 @@ class JunghomeGateway:
 
         _LOGGER.info("Requesting registration token from %s", url)
 
-        timeout = aiohttp.ClientTimeout(total=185)
+        timeout = aiohttp.ClientTimeout(
+            total=185,
+            connect=10,
+            sock_connect=10,
+            sock_read=185,
+        )
         try:
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.post(
