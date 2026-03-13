@@ -12,7 +12,16 @@
   ],
   "ssdp": [],
   "version": "0.5.0",
-  "zeroconf": [],
+  "zeroconf": [
+    {
+      "type": "_http._tcp.local.",
+      "name": "junghome*"
+    },
+    {
+      "type": "_https._tcp.local.",
+      "name": "junghome*"
+    }
+  ],
   "dhcp": [
     {
       "hostname": "junghome*"
