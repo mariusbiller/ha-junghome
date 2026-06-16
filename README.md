@@ -1,5 +1,5 @@
 # ha-junghome
-This is a example integration showing how to integrate JUNG HOME devices into Home Assistant.
+This integration adds JUNG HOME devices into Home Assistant.
 The communication to JUNG HOME devices runs over local network via the JUNG HOME Gateway – no cloud required.
 
 ## Supported device types
@@ -8,10 +8,9 @@ The communication to JUNG HOME devices runs over local network via the JUNG HOME
 - Tuneable White Light (switching and brightness only)
 - Socket (including power measurement)
 - Window Cover
+- Rocker Switch (button press entities can be used in automations to react to physical button presses)
 - Gateway as Hub Device
 
->**hint:**
-*Please note that the provided integration is a bare minimum example and may have limitations regarding its quality and functionality.*
 
 ## Prerequisites
 - JUNG HOME devices have already been installed and set up using the official JUNG HOME App
