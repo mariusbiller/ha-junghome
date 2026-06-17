@@ -31,7 +31,8 @@ class JunghomeCoordinator(DataUpdateCoordinator):
             "light": [],
             "sensor": [],
             "binary_sensor": [],
-            "switch": []
+            "switch": [],
+            "button": [],
         }
         
 
@@ -213,6 +214,8 @@ class JunghomeCoordinator(DataUpdateCoordinator):
         elif platform_type == "binary_sensor":
             # These are handled by hub config, not device functions
             return False
+        elif platform_type == "button":
+            return device_type in ["Rocker Switch", "RockerSwitch"]
         
         return False
 
@@ -303,6 +306,17 @@ class JunghomeCoordinator(DataUpdateCoordinator):
                     device["brightness"] = int((brightness_value / 100) * 255)  # Convert to HA scale
                 except (ValueError, TypeError):
                     # Skip invalid values
+                    pass
+
+        elif datapoint_type in ["up_request", "down_request"] and device_type in ["Rocker Switch", "RockerSwitch"]:
+            value = values[0].get("value") if values else None
+            if value == "NaN":
+                device["available"] = False
+            elif value is not None:
+                device["available"] = True
+                try:
+                    device["states"][datapoint_type] = bool(int(float(value)))
+                except (ValueError, TypeError):
                     pass
 
         # Add energy monitoring for SocketEnergy or Socket
@@ -459,6 +473,22 @@ class JunghomeCoordinator(DataUpdateCoordinator):
                 # Process datapoints to populate the "states" dictionary
                 for datapoint in iter_datapoints_by_type(device, "quantity"):
                     self._update_energy_state(device, datapoint.get("values", []))
+
+        elif device_type in ["Rocker Switch", "RockerSwitch"]:
+            for datapoint_type in ["up_request", "down_request"]:
+                datapoint = find_datapoint(device, datapoint_type)
+                if not (datapoint and datapoint.get("values")):
+                    continue
+
+                value = datapoint["values"][0].get("value", 0)
+                if value == "NaN":
+                    device["available"] = False
+                    continue
+
+                try:
+                    device["states"][datapoint_type] = bool(int(float(value)))
+                except (ValueError, TypeError):
+                    device["states"][datapoint_type] = False
                     
         return device
 
