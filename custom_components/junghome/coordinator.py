@@ -3,7 +3,17 @@ import asyncio
 import logging
 
 from homeassistant.config_entries import ConfigEntry
-from .const import CONF_IP_ADDRESS, CONF_TOKEN, DOMAIN
+from .const import (
+    CONF_IP_ADDRESS,
+    CONF_TOKEN,
+    DOMAIN,
+    ROCKER_DIRECTIONS,
+    ROCKER_LED_DATAPOINT,
+    ROCKER_SWITCH_TYPES,
+)
+
+# Rocker datapoints that carry a plain boolean into device["states"].
+ROCKER_BOOL_DATAPOINTS = [*ROCKER_DIRECTIONS, ROCKER_LED_DATAPOINT]
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -32,7 +42,7 @@ class JunghomeCoordinator(DataUpdateCoordinator):
             "sensor": [],
             "binary_sensor": [],
             "switch": [],
-            "button": [],
+            "event": [],
         }
         
 
@@ -206,7 +216,8 @@ class JunghomeCoordinator(DataUpdateCoordinator):
         if platform_type == "cover":
             return device_type in ["Position", "PositionAndAngle"]
         elif platform_type == "light":
-            return device_type in ["OnOff", "DimmerLight", "ColorLight"]
+            # Rocker switches contribute their status LED to the light platform
+            return device_type in ["OnOff", "DimmerLight", "ColorLight", *ROCKER_SWITCH_TYPES]
         elif platform_type == "switch":
             return device_type in ["Socket", "SocketEnergy"]
         elif platform_type == "sensor":
@@ -214,9 +225,9 @@ class JunghomeCoordinator(DataUpdateCoordinator):
         elif platform_type == "binary_sensor":
             # These are handled by hub config, not device functions
             return False
-        elif platform_type == "button":
-            return device_type in ["Rocker Switch", "RockerSwitch"]
-        
+        elif platform_type == "event":
+            return device_type in ROCKER_SWITCH_TYPES
+
         return False
 
     def register_entity_callback(self, platform_type: str, callback) -> None:
@@ -308,7 +319,7 @@ class JunghomeCoordinator(DataUpdateCoordinator):
                     # Skip invalid values
                     pass
 
-        elif datapoint_type in ["up_request", "down_request"] and device_type in ["Rocker Switch", "RockerSwitch"]:
+        elif datapoint_type in ROCKER_BOOL_DATAPOINTS and device_type in ROCKER_SWITCH_TYPES:
             value = values[0].get("value") if values else None
             if value == "NaN":
                 device["available"] = False
@@ -474,8 +485,8 @@ class JunghomeCoordinator(DataUpdateCoordinator):
                 for datapoint in iter_datapoints_by_type(device, "quantity"):
                     self._update_energy_state(device, datapoint.get("values", []))
 
-        elif device_type in ["Rocker Switch", "RockerSwitch"]:
-            for datapoint_type in ["up_request", "down_request"]:
+        elif device_type in ROCKER_SWITCH_TYPES:
+            for datapoint_type in ROCKER_BOOL_DATAPOINTS:
                 datapoint = find_datapoint(device, datapoint_type)
                 if not (datapoint and datapoint.get("values")):
                     continue
