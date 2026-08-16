@@ -7,6 +7,7 @@ from typing import Any
 import voluptuous as vol
 from homeassistant import config_entries, exceptions
 from homeassistant.core import HomeAssistant
+from homeassistant.data_entry_flow import AbortFlow
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
@@ -162,6 +163,10 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     return self.async_create_entry(title=info["title"], data=clean_data)
 
                 return await self.async_step_token_register()
+            except AbortFlow:
+                # _abort_if_unique_id_configured signals via AbortFlow, which
+                # descends from Exception - let it through to end the flow.
+                raise
             except CannotConnect:
                 errors["base"] = "cannot_connect"
             except InvalidToken:
