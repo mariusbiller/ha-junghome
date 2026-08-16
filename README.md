@@ -8,7 +8,7 @@ Communication with JUNG HOME devices uses the local network via the JUNG HOME Ga
 - Tunable White Light (switching and brightness only)
 - Socket (including power measurement)
 - Window Cover
-- Rocker Switch (button press entities can be used in automations to react to physical button presses)
+- Rocker Switch (an event entity per direction firing `press` and `release`, so automations can react to a tap or to how long a key is held - for example hold-to-dim; plus the status LED in the rocker face as an on/off light)
 - Gateway as Hub device
 
 

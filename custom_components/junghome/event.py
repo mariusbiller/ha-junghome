@@ -1,22 +1,20 @@
-"""Platform for button integration."""
+"""Platform for event integration."""
 from __future__ import annotations
 import logging
 
-from homeassistant.components.button import ButtonEntity
+from homeassistant.components.event import EventDeviceClass, EventEntity
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import JunghomeConfigEntry
+from .const import ROCKER_DIRECTIONS, ROCKER_SWITCH_TYPES
 from .datapoints import get_datapoint_id
 from .entity import JunghomeDeviceEntity
 
 _LOGGER = logging.getLogger(__name__)
 
-ROCKER_SWITCH_TYPES = ["Rocker Switch", "RockerSwitch"]
-ROCKER_BUTTONS = {
-    "up_request": "Up",
-    "down_request": "Down",
-}
+EVENT_PRESS = "press"
+EVENT_RELEASE = "release"
 
 
 async def async_setup_entry(
@@ -24,24 +22,24 @@ async def async_setup_entry(
     config_entry: JunghomeConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Jung Home rocker switch buttons from a config entry."""
+    """Set up Jung Home rocker switch events from a config entry."""
     coordinator = config_entry.runtime_data
-    _LOGGER.info("Initialize Jung Home buttons from coordinator")
+    _LOGGER.info("Initialize Jung Home rocker events from coordinator")
 
-    async def add_new_buttons(devices):
-        """Add new button devices dynamically."""
-        buttons = []
+    async def add_new_events(devices):
+        """Add event entities for new rocker switch devices dynamically."""
+        events = []
         for device in devices:
             if device["type"] not in ROCKER_SWITCH_TYPES:
                 continue
 
-            for datapoint_type, label_suffix in ROCKER_BUTTONS.items():
+            for datapoint_type, label_suffix in ROCKER_DIRECTIONS.items():
                 datapoint_id = get_datapoint_id(device, datapoint_type)
                 if datapoint_id is None:
                     continue
 
-                buttons.append(
-                    JunghomeRockerButton(
+                events.append(
+                    JunghomeRockerEvent(
                         coordinator,
                         device,
                         datapoint_id,
@@ -50,21 +48,31 @@ async def async_setup_entry(
                     )
                 )
 
-        if buttons:
-            _LOGGER.info("Adding %d new button entities", len(buttons))
-            async_add_entities(buttons)
+        if events:
+            _LOGGER.info("Adding %d new rocker event entities", len(events))
+            async_add_entities(events)
 
-    coordinator.register_entity_callback("button", add_new_buttons)
+    coordinator.register_entity_callback("event", add_new_events)
 
     if coordinator.data is None or "devices" not in coordinator.data:
         _LOGGER.warning("No device data available from coordinator")
         return
 
-    await add_new_buttons(coordinator.data["devices"])
+    await add_new_events(coordinator.data["devices"])
 
 
-class JunghomeRockerButton(JunghomeDeviceEntity, ButtonEntity):
-    """Jung Home rocker switch button."""
+class JunghomeRockerEvent(JunghomeDeviceEntity, EventEntity):
+    """Press and release events for one direction of a rocker switch.
+
+    The gateway reports each direction as a request datapoint that goes to "1"
+    on press and back to "0" on release, with no repeats while the key is held.
+    Emitting both edges is what makes continuous-push effects such as
+    hold-to-dim possible: an automation starts on "press" and stops on
+    "release", using the time between them as the hold duration.
+    """
+
+    _attr_device_class = EventDeviceClass.BUTTON
+    _attr_event_types = [EVENT_PRESS, EVENT_RELEASE]
 
     def __init__(
         self,
@@ -74,7 +82,7 @@ class JunghomeRockerButton(JunghomeDeviceEntity, ButtonEntity):
         datapoint_type: str,
         label_suffix: str,
     ) -> None:
-        """Initialize a Jung Home rocker switch button."""
+        """Initialize a Jung Home rocker switch event entity."""
         super().__init__(coordinator)
         self._device_id = device["id"]
         self._datapoint_id = datapoint_id
@@ -84,17 +92,25 @@ class JunghomeRockerButton(JunghomeDeviceEntity, ButtonEntity):
         self._attr_unique_id = f"{self._device_id}_{self._datapoint_id}"
         self._attr_name = f"{device['label']} {self._label_suffix}"
 
+        # Seed from current state so a key already held at startup does not
+        # produce a phantom press on the first coordinator update.
+        self._pressed = self._is_pressed(device)
+
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         self._sync_label_and_area()
-        device = self.coordinator.get_device_by_id(self._device_id)
-        self._sync_rocker_label(device)
+        self._sync_rocker_label()
 
-        if self._is_pressed_from_device(device):
-            self.hass.async_create_task(self._async_press_action())
-        else:
-            self.async_write_ha_state()
+        # This runs on every coordinator refresh for every entity, including
+        # unrelated devices, so only a change in level is an actual edge.
+        device = self.coordinator.get_device_by_id(self._device_id)
+        was_pressed, self._pressed = self._pressed, self._is_pressed(device)
+
+        if self._pressed != was_pressed:
+            self._trigger_event(EVENT_PRESS if self._pressed else EVENT_RELEASE)
+
+        self.async_write_ha_state()
 
     @property
     def device_info(self):
@@ -109,21 +125,14 @@ class JunghomeRockerButton(JunghomeDeviceEntity, ButtonEntity):
         attributes["datapoint_type"] = self._datapoint_type
         return attributes
 
-    async def async_press(self) -> None:
-        """Handle a Home Assistant button press service call."""
-        return None
-
-    def _sync_rocker_label(self, device: dict | None) -> None:
-        """Update entity label while keeping the rocker direction suffix."""
-        if not device:
-            return
-
-        label = device.get("label")
+    def _sync_rocker_label(self) -> None:
+        """Re-append the direction suffix that _sync_label_and_area strips."""
+        label = self._get_device().get("label")
         if label:
             self._attr_name = f"{label} {self._label_suffix}"
 
-    def _is_pressed_from_device(self, device: dict | None) -> bool:
-        """Return True if the latest rocker datapoint value is pressed."""
+    def _is_pressed(self, device: dict | None) -> bool:
+        """Return True while the rocker direction is held down."""
         if not device:
             return False
         return bool(device.get("states", {}).get(self._datapoint_type, False))

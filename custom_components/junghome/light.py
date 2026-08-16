@@ -7,6 +7,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import JunghomeConfigEntry
+from .const import ROCKER_LED_DATAPOINT, ROCKER_SWITCH_TYPES
 from .datapoints import get_datapoint_id
 from .entity import JunghomeDeviceEntity
 from .junghome_client import JunghomeGateway
@@ -32,11 +33,18 @@ async def async_setup_entry(
         """Add new light devices dynamically."""
         lights = []
         for device in devices:
-            # skip non-light devices 
-            light_types = ["OnOff", "DimmerLight", "ColorLight"] 
+            # Rocker switches expose the status LED in their face as a light
+            if device["type"] in ROCKER_SWITCH_TYPES:
+                led_id = get_datapoint_id(device, ROCKER_LED_DATAPOINT)
+                if led_id is not None:
+                    lights.append(JunghomeRockerLed(coordinator, device, led_id))
+                continue
+
+            # skip non-light devices
+            light_types = ["OnOff", "DimmerLight", "ColorLight"]
             if device["type"] not in light_types:
                 continue
-            
+
             switch_id = get_datapoint_id(device, "switch")
                 
             # Skip no switch datapoint
@@ -170,5 +178,68 @@ class JunghomeLight(JunghomeDeviceEntity, LightEntity):
             }]
         }
         response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
-        if response is None: 
+        if response is None:
             _LOGGER.error("Failed to turn off light %s", self._device_id)
+
+
+#
+# ROCKER SWITCH STATUS LED
+#
+class JunghomeRockerLed(JunghomeDeviceEntity, LightEntity):
+    """Status LED built into the face of a rocker switch.
+
+    On/off only - the gateway exposes the LED as a plain boolean datapoint with
+    no brightness or colour.
+    """
+
+    _attr_color_mode = ColorMode.ONOFF
+    _attr_supported_color_modes = {ColorMode.ONOFF}
+
+    def __init__(self, coordinator, device, led_id: str) -> None:
+        """Initialize a Jung Home rocker status LED."""
+        super().__init__(coordinator)
+
+        self._device_id = device["id"]
+        self._led_id = led_id
+        self._attr_unique_id = f"{self._device_id}_{led_id}"
+        self._attr_name = f"{device['label']} LED"
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        self._sync_label_and_area()
+        label = self._get_device().get("label")
+        if label:
+            self._attr_name = f"{label} LED"
+        self.async_write_ha_state()
+
+    @property
+    def device_info(self):
+        """Return device info."""
+        return self._build_device_info("Rocker Switch")
+
+    @property
+    def is_on(self) -> bool:
+        """Return true if the status LED is lit."""
+        return bool(self._get_device().get("states", {}).get(ROCKER_LED_DATAPOINT, False))
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Turn the status LED on."""
+        await self._async_set_led("1")
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Turn the status LED off."""
+        await self._async_set_led("0")
+
+    async def _async_set_led(self, value: str) -> None:
+        """Write the status LED datapoint."""
+        url = f'https://{self.coordinator.ip}/api/junghome/functions/{self._device_id}/datapoints/{self._led_id}'
+        body = {
+            "data": [{
+                "key": ROCKER_LED_DATAPOINT,
+                "value": value
+            }]
+        }
+        response = await JunghomeGateway.http_patch_request(url, self.coordinator.token, body)
+        if response is None:
+            _LOGGER.error("Failed to set status LED for rocker %s", self._device_id)
