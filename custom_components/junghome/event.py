@@ -4,10 +4,11 @@ import logging
 
 from homeassistant.components.event import EventDeviceClass, EventEntity
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import JunghomeConfigEntry
-from .const import ROCKER_DIRECTIONS, ROCKER_SWITCH_TYPES
+from .const import DOMAIN, ROCKER_DIRECTIONS, ROCKER_SWITCH_TYPES
 from .datapoints import get_datapoint_id
 from .entity import JunghomeDeviceEntity
 
@@ -24,6 +25,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up Jung Home rocker switch events from a config entry."""
     coordinator = config_entry.runtime_data
+    registry = er.async_get(hass)
     _LOGGER.info("Initialize Jung Home rocker events from coordinator")
 
     async def add_new_events(devices):
@@ -37,6 +39,8 @@ async def async_setup_entry(
                 datapoint_id = get_datapoint_id(device, datapoint_type)
                 if datapoint_id is None:
                     continue
+
+                _remove_superseded_button(registry, device["id"], datapoint_id)
 
                 events.append(
                     JunghomeRockerEvent(
@@ -59,6 +63,21 @@ async def async_setup_entry(
         return
 
     await add_new_events(coordinator.data["devices"])
+
+
+def _remove_superseded_button(registry: er.EntityRegistry, device_id: str, datapoint_id: str) -> None:
+    """Drop the button entity this direction used to be registered as.
+
+    Rocker directions were button entities before the event platform existed.
+    Home Assistant keeps registry entries for platforms that stop being set up,
+    so without this the old buttons linger as unavailable forever. The unique_id
+    is unchanged, only the domain moved, which makes the old row easy to find.
+    """
+    unique_id = f"{device_id}_{datapoint_id}"
+    old_entity_id = registry.async_get_entity_id("button", DOMAIN, unique_id)
+    if old_entity_id:
+        _LOGGER.info("Removing button entity %s superseded by an event entity", old_entity_id)
+        registry.async_remove(old_entity_id)
 
 
 class JunghomeRockerEvent(JunghomeDeviceEntity, EventEntity):
