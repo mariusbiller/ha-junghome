@@ -7,6 +7,7 @@ from typing import Any
 import voluptuous as vol
 from homeassistant import config_entries, exceptions
 from homeassistant.core import HomeAssistant
+from homeassistant.data_entry_flow import AbortFlow
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
@@ -21,6 +22,8 @@ _LOGGER = logging.getLogger(__name__)
 
 IP_SCHEMA = vol.Schema({
     vol.Required(CONF_IP_ADDRESS): cv.string,
+    # Supplying a token here skips the gateway button registration entirely.
+    vol.Optional(CONF_TOKEN): cv.string,
 })
 
 TOKEN_SCHEMA = vol.Schema({
@@ -147,7 +150,29 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self._suggested_token = None
                 self._registration_error = None
                 self._registration_task = None
+
+                # An existing token can be reused as-is; only ask the gateway
+                # for a new one when the user has none to hand.
+                token = (user_input.get(CONF_TOKEN) or "").strip()
+                if token:
+                    clean_data = {
+                        CONF_IP_ADDRESS: ip_address,
+                        CONF_TOKEN: token,
+                    }
+                    info = await validate_input(self.hass, clean_data)
+                    return self.async_create_entry(title=info["title"], data=clean_data)
+
                 return await self.async_step_token_register()
+            except AbortFlow:
+                # _abort_if_unique_id_configured signals via AbortFlow, which
+                # descends from Exception - let it through to end the flow.
+                raise
+            except CannotConnect:
+                errors["base"] = "cannot_connect"
+            except InvalidToken:
+                errors[CONF_TOKEN] = "invalid_token"
+            except InvalidIP:
+                errors[CONF_IP_ADDRESS] = "invalid_ip"
             except ValueError:
                 errors[CONF_IP_ADDRESS] = "invalid_ip"
             except Exception:
