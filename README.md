@@ -37,8 +37,9 @@ Communication with JUNG HOME devices uses the local network via the JUNG HOME Ga
 1. In Home Assistant, go to **Settings > Devices & services** and click **Add Integration**.
 2. Search for **JUNG HOME** and start the setup flow.
 3. Enter your JUNG HOME Gateway's IP address. If Home Assistant has discovered the gateway automatically, confirm the suggested IP address.
-4. Press the button on your JUNG HOME Gateway when the flow asks you to allow Home Assistant access. The integration will request the access token automatically.
-5. If automatic token registration fails, enter the authentication token manually in the next step.
+4. If you already have an API token, paste it into the optional **Authentication Token** field and setup finishes right there. Leave the field empty to have the integration request a new token for you.
+5. When left empty, press the button on your JUNG HOME Gateway once the flow asks you to allow Home Assistant access. The integration will request the access token automatically.
+6. If automatic token registration fails, enter the authentication token manually in the next step.
 
 **Hints**
 - *Make sure your JUNG HOME Gateway's IP address does not change, for example by creating a DHCP reservation in your router.*
