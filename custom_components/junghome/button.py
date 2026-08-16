@@ -83,6 +83,7 @@ class JunghomeRockerButton(JunghomeDeviceEntity, ButtonEntity):
 
         self._attr_unique_id = f"{self._device_id}_{self._datapoint_id}"
         self._attr_name = f"{device['label']} {self._label_suffix}"
+        self._pressed = self._is_pressed_from_device(device)
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -91,7 +92,11 @@ class JunghomeRockerButton(JunghomeDeviceEntity, ButtonEntity):
         device = self.coordinator.get_device_by_id(self._device_id)
         self._sync_rocker_label(device)
 
-        if self._is_pressed_from_device(device):
+        # Only the press edge counts: this runs on every coordinator refresh for
+        # every entity, so testing the level alone re-fires while the key is held.
+        was_pressed, self._pressed = self._pressed, self._is_pressed_from_device(device)
+
+        if self._pressed and not was_pressed:
             self.hass.async_create_task(self._async_press_action())
         else:
             self.async_write_ha_state()

@@ -10,6 +10,9 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, MANUFACTURER
 from . import JunghomeConfigEntry
+from .button import ROCKER_BUTTONS, ROCKER_SWITCH_TYPES
+from .datapoints import get_datapoint_id
+from .entity import JunghomeDeviceEntity
 from .sensor import JunghomeHubConfigCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -20,11 +23,44 @@ async def async_setup_entry(
     config_entry: JunghomeConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Jung Home hub binary sensors from a config entry."""
-    
+    """Set up Jung Home hub and rocker switch binary sensors from a config entry."""
+
     # Get main coordinator to extract IP and token
     main_coordinator = config_entry.runtime_data
-    
+
+    async def add_new_rocker_sensors(devices):
+        """Add "held" sensors for new rocker switch devices dynamically."""
+        sensors = []
+        for device in devices:
+            if device["type"] not in ROCKER_SWITCH_TYPES:
+                continue
+
+            for datapoint_type, label_suffix in ROCKER_BUTTONS.items():
+                datapoint_id = get_datapoint_id(device, datapoint_type)
+                if datapoint_id is None:
+                    continue
+
+                sensors.append(
+                    JunghomeRockerHeldSensor(
+                        main_coordinator,
+                        device,
+                        datapoint_id,
+                        datapoint_type,
+                        label_suffix,
+                    )
+                )
+
+        if sensors:
+            _LOGGER.info("Adding %d new rocker held sensors", len(sensors))
+            async_add_entities(sensors)
+
+    main_coordinator.register_entity_callback("binary_sensor", add_new_rocker_sensors)
+
+    if main_coordinator.data and "devices" in main_coordinator.data:
+        await add_new_rocker_sensors(main_coordinator.data["devices"])
+    else:
+        _LOGGER.warning("No device data available from coordinator")
+
     # Create hub config coordinator (reuse from sensor.py)
     hub_coordinator = JunghomeHubConfigCoordinator(
         hass, main_coordinator.ip, main_coordinator.token
@@ -129,3 +165,62 @@ class JunghomeUpdateBinarySensor(JunghomeHubBinarySensorBase):
             "current_version": config.get("version_release", "Unknown"),
             "current_build": config.get("version_build", "Unknown"),
         }
+
+
+class JunghomeRockerHeldSensor(JunghomeDeviceEntity, BinarySensorEntity):
+    """On while a rocker switch direction is physically held down.
+
+    The gateway sends "1" on press and "0" on release with no repeats in
+    between, so this is simply the last value of the request datapoint. The
+    matching button entity records the press; this one exposes the release
+    edge that a button state (a timestamp) cannot carry.
+    """
+
+    def __init__(
+        self,
+        coordinator,
+        device,
+        datapoint_id: str,
+        datapoint_type: str,
+        label_suffix: str,
+    ) -> None:
+        """Initialize a Jung Home rocker held sensor."""
+        super().__init__(coordinator)
+        self._device_id = device["id"]
+        self._datapoint_id = datapoint_id
+        self._datapoint_type = datapoint_type
+        self._label_suffix = f"{label_suffix} Held"
+
+        self._attr_unique_id = f"{self._device_id}_{self._datapoint_id}_held"
+        self._attr_name = f"{device['label']} {self._label_suffix}"
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        self._sync_label_and_area()
+        self._sync_rocker_label()
+        self.async_write_ha_state()
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device info."""
+        return self._build_device_info("Rocker Switch")
+
+    @property
+    def is_on(self) -> bool:
+        """Return True while the rocker direction is held."""
+        return bool(self._get_device().get("states", {}).get(self._datapoint_type, False))
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Return extra attributes."""
+        attributes = super().extra_state_attributes
+        attributes["datapoint_id"] = self._datapoint_id
+        attributes["datapoint_type"] = self._datapoint_type
+        return attributes
+
+    def _sync_rocker_label(self) -> None:
+        """Re-append the direction suffix that _sync_label_and_area strips."""
+        label = self._get_device().get("label")
+        if label:
+            self._attr_name = f"{label} {self._label_suffix}"

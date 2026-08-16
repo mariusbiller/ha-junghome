@@ -212,8 +212,8 @@ class JunghomeCoordinator(DataUpdateCoordinator):
         elif platform_type == "sensor":
             return device_type == "SocketEnergy"
         elif platform_type == "binary_sensor":
-            # These are handled by hub config, not device functions
-            return False
+            # Hub status sensors come from hub config, rockers get "held" sensors
+            return device_type in ["Rocker Switch", "RockerSwitch"]
         elif platform_type == "button":
             return device_type in ["Rocker Switch", "RockerSwitch"]
         
