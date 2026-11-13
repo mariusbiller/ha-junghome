@@ -14,6 +14,7 @@ _LOGGER = logging.getLogger(__name__)
 # List of platforms to support. 
 # each should match .py file (e.g. <cover.py> and <light.py>)
 PLATFORMS = [
+    Platform.CLIMATE,
     Platform.LIGHT,
     Platform.COVER,
     Platform.SENSOR,

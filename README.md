@@ -9,8 +9,15 @@ Communication with JUNG HOME devices uses the local network via the JUNG HOME Ga
 - Socket (including power measurement)
 - Window Cover
 - Rocker Switch (an event entity per direction firing `press` and `release`, so automations can react to a tap or to how long a key is held - for example hold-to-dim; plus the status LED in the rocker face as an on/off light)
+- Room Thermostat (climate entity with current and target temperature and the presets Frost / Eco / Comfort)
 - Gateway as Hub device
 
+
+## Room thermostats
+
+Each JUNG HOME room thermostat is exposed as a climate entity with current temperature, target temperature (5 - 30 °C in steps of 0.5 °C) and the presets Frost, Eco and Comfort. The gateway offers no way to switch a thermostat off, so the entity is always in mode `heat`.
+
+The preset temperatures are stored in the thermostat and cannot be read directly. The entity remembers the temperature the gateway reports for each preset (attribute `preset_temperatures`), so select each preset once after the first start. If no preset matches the target temperature, the preset field stays empty.
 
 ## Prerequisites
 - JUNG HOME devices have already been installed and set up using the official JUNG HOME app.

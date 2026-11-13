@@ -43,6 +43,7 @@ class JunghomeCoordinator(DataUpdateCoordinator):
             "binary_sensor": [],
             "switch": [],
             "event": [],
+            "climate": [],
         }
         
 
@@ -227,6 +228,8 @@ class JunghomeCoordinator(DataUpdateCoordinator):
             return False
         elif platform_type == "event":
             return device_type in ROCKER_SWITCH_TYPES
+        elif platform_type == "climate":
+            return device_type == "Thermostat"
 
         return False
 
