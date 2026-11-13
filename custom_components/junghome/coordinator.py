@@ -554,9 +554,9 @@ class JunghomeCoordinator(DataUpdateCoordinator):
             if area_entry is None:
                 area_entry = area_registry.async_create(suggested_area)
 
-            device_entry = device_registry.async_get_device(
-                identifiers={(DOMAIN, device_id)},
-                connections=set(),
+            device_entry = device_registry.async_get_device_by_identifier(
+                identifier=(DOMAIN, device_id),
+                config_entry_id=self.entry.entry_id,
             )
             if device_entry and device_entry.area_id != area_entry.id:
                 device_registry.async_update_device(device_entry.id, area_id=area_entry.id)
