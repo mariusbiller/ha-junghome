@@ -21,6 +21,17 @@ Communication stays on your local network — no cloud required.
 
 Rocker switch events let you build automations for taps and holds, such as hold-to-dim.
 
+## Features
+
+- Device states update automatically as changes happen.
+- The integration reconnects automatically if the connection to the Gateway is interrupted.
+- New devices are added automatically, and entities for removed devices are removed when the Gateway sends an updated device list.
+- Group names are imported from JUNG HOME and associated with the corresponding devices.
+- Devices are automatically assigned to Home Assistant areas based on their JUNG HOME groups.
+
+
+
+
 ## Before you start
 
 - Set up your JUNG HOME devices and Gateway in the official JUNG HOME app.
