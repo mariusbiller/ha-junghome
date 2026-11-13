@@ -1,44 +1,46 @@
-# ha-junghome
-This project integrates JUNG HOME devices into Home Assistant.
-Communication with JUNG HOME devices uses the local network via the JUNG HOME Gateway - no cloud required.
+# JUNG HOME for Home Assistant
 
-## Supported device types
-- On/Off Light
-- Dimmable Light
-- Tunable White Light (switching and brightness only)
-- Socket (including power measurement)
-- Window Cover
-- Rocker Switch (an event entity per direction firing `press` and `release`, so automations can react to a tap or to how long a key is held - for example hold-to-dim; plus the status LED in the rocker face as an on/off light)
-- Room Thermostat (climate entity with current and target temperature and the presets Frost / Eco / Comfort)
-- Gateway as Hub device
+[![Open in Marketplace](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=mariusbiller&repository=ha-junghome&category=integration)
 
+Control your JUNG HOME devices from Home Assistant through the JUNG HOME Gateway.
 
-## Room thermostats
+Communication stays on your local network — no cloud required.
 
-Each JUNG HOME room thermostat is exposed as a climate entity with current temperature, target temperature (5 - 30 °C in steps of 0.5 °C) and the presets Frost, Eco and Comfort. The gateway offers no way to switch a thermostat off, so the entity is always in mode `heat`.
+## Supported devices
 
-The preset temperatures are stored in the thermostat and cannot be read directly. The entity remembers the temperature the gateway reports for each preset (attribute `preset_temperatures`), so select each preset once after the first start. If no preset matches the target temperature, the preset field stays empty.
+| Device | Features |
+| --- | --- |
+| On/off light | Switching |
+| Dimmable light | Switching and brightness |
+| Tunable white light | Switching and brightness only; no color temperature control |
+| Socket | Switching and power measurement |
+| Window cover | Cover control |
+| Rocker switch | Press and release events for each direction; status LED control |
+| Room thermostat | Current and target temperature; Frost, Eco, and Comfort presets |
+| Gateway | Registered as a hub device |
 
-## Prerequisites
-- JUNG HOME devices have already been installed and set up using the official JUNG HOME app.
-- A JUNG HOME Gateway has been added, is active, and is on the same local network as your Home Assistant instance.
-- Make sure your JUNG HOME Gateway's IP address does not change, for example by creating a DHCP reservation in your router.
+Rocker switch events let you build automations for taps and holds, such as hold-to-dim.
 
+## Before you start
+
+- Set up your JUNG HOME devices and Gateway in the official JUNG HOME app.
+- Keep the Gateway powered on and on the same local network as Home Assistant. Automatic discovery requires the same network subnet.
+- Give the Gateway a stable IP address, for example with a DHCP reservation in your router.
 
 ## Installation
-### Option 1: Manual Installation
-1. Copy this folder to `<config_dir>/custom_components/junghome/`
-2. Restart Home Assistant.
+> Requires Home Assistant **2026.11 or newer**.
 
-### Option 2: Install via HACS
-> *If you have not installed HACS (Home Assistant Community Store) yet, follow the official guide: [HACS Installation Guide](https://hacs.xyz/docs/use/download/download/)*
+Use the **Open in Marketplace** badge at the top of this page, add the repository if prompted, and install **JUNG HOME**. Then restart Home Assistant.
 
-1. Open Home Assistant and go to **HACS > Integrations**.
+To add the repository yourself:
+
+1. Open Home Assistant and go to **Settings > Marketplace**.
 2. Click the three dots in the top-right corner and select **Custom repositories**.
-3. Add the URL of this GitHub repository: `https://github.com/mariusbiller/ha-junghome`.
+3. Enter `https://github.com/mariusbiller/ha-junghome`.
 4. Select the category **Integration**.
-5. Search for **JUNG HOME** in HACS and install the integration.
+5. Search for **JUNG HOME** in Marketplace and install the integration.
 6. Restart Home Assistant.
+
 
 ## Setup
 1. In Home Assistant, go to **Settings > Devices & services** and click **Add Integration**.
@@ -52,15 +54,16 @@ The preset temperatures are stored in the thermostat and cannot be read directly
 - *For proper discovery, make sure your JUNG HOME Gateway and your Home Assistant instance are in the same network subnet.*
 
 ## Credits
+
 - Special thanks to [@luismalves](https://github.com/luismalves) for bringing the integration to the next level.
 - Special thanks to [@kkellermann](https://github.com/kkellermann) for integrating the socket measuring sensor function.
+- Special thanks to [@micthon](https://github.com/micthon) for adding room thermostat support.
 
 ## Disclaimer
+
 This project is a privately developed open-source integration for the JUNG HOME smart home system provided by Albrecht Jung GmbH & Co. KG. I have not been commissioned or authorized by them to create this integration.
 
 This project is offered as is, without any guarantee or warranty of any kind. I do not assume any responsibility for any issues, damages, or losses that may arise from the use of this integration.
 Users are encouraged to review and understand the terms and conditions of Albrecht Jung GmbH & Co. KG's services before using this integration.
 
-Contributions and feedback from the community are welcome and appreciated, but please keep the limitations and disclaimers stated here in mind.
-
-Thank you.
+Contributions and feedback are welcome.
