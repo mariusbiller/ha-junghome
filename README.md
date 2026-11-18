@@ -17,15 +17,10 @@ Communication stays on your local network — no cloud required.
 | Window cover | Cover control |
 | Rocker switch | Press and release events for each direction; status LED control |
 | Room thermostat | Current and target temperature; Frost, Eco, and Comfort presets |
+| Scenes | Activate scenes configured in the JUNG HOME app |
 | Gateway | Registered as a hub device |
-| JUNG HOME scene | Activate scenes configured in the JUNG HOME app |
 
 Rocker switch events let you build automations for taps and holds, such as hold-to-dim.
-
-Scenes configured in the JUNG HOME app appear as `scene.*` entities. Activate
-them from a dashboard or an automation using `scene.turn_on`. Scene additions,
-renames and deletions are synchronized from the gateway. Create and edit the
-scene settings in the JUNG HOME app.
 
 ## Features
 
@@ -35,6 +30,7 @@ scene settings in the JUNG HOME app.
 - Device changes are reflected in real time: new devices added, new names and entities for deleted devices are removed instantly.
 - Group names are imported from JUNG HOME and associated with the corresponding devices.
 - Devices are automatically assigned to Home Assistant areas based on their JUNG HOME groups.
+- Scenes you create, rename, or delete in the JUNG HOME app are automatically synced to Home Assistant 
 
 
 
