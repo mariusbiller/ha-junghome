@@ -100,6 +100,20 @@ class JunghomeGateway:
         return groups
 
     @staticmethod
+    async def request_scenes(host: str, token: str):
+        """Request scene definitions from the gateway."""
+        url = f"https://{host}/api/junghome/scenes/"
+        _LOGGER.info("Requesting scenes from %s...", url)
+
+        scenes = await JunghomeGateway.http_get_request(url, token)
+        if scenes is None:
+            _LOGGER.error("Failed to retrieve JUNG HOME scenes.")
+            return None
+
+        _LOGGER.debug("Scenes response: %s", scenes)
+        return scenes
+
+    @staticmethod
     async def request_registration_token(host: str, user_name: str):
         """
         Request a new registration token from the gateway.
@@ -166,7 +180,7 @@ class JunghomeGateway:
             "token": token
         }
         
-        _LOGGER.debug(f"Sending GET request to {url} with headers {headers}...")
+        _LOGGER.debug("Sending GET request to %s...", url)
 
         # Send request
         try:
@@ -237,6 +251,20 @@ class JunghomeGateway:
             return None
         except aiohttp.ClientError as e:
             _LOGGER.error(f"Failed to update data on {url}: {e}")
+            return None
+
+    @staticmethod
+    async def http_post_request(url: str, token: str):
+        """Send an authenticated POST without a body and return None on failure."""
+        headers = {"accept": "application/json", "token": token}
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
+                async with session.post(url, headers=headers, ssl=False) as response:
+                    response.raise_for_status()
+                    _LOGGER.info("POST request to %s succeeded.", url)
+                    return {"success": True}
+        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+            _LOGGER.error("POST request to %s failed: %s", url, err)
             return None
 
     # ==================================================================================

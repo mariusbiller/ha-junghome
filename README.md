@@ -18,8 +18,14 @@ Communication stays on your local network — no cloud required.
 | Rocker switch | Press and release events for each direction; status LED control |
 | Room thermostat | Current and target temperature; Frost, Eco, and Comfort presets |
 | Gateway | Registered as a hub device |
+| JUNG HOME scene | Activate scenes configured in the JUNG HOME app |
 
 Rocker switch events let you build automations for taps and holds, such as hold-to-dim.
+
+Scenes configured in the JUNG HOME app appear as `scene.*` entities. Activate
+them from a dashboard or an automation using `scene.turn_on`. Scene additions,
+renames and deletions are synchronized from the gateway. Create and edit the
+scene settings in the JUNG HOME app.
 
 ## Features
 

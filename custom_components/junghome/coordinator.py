@@ -15,6 +15,7 @@ from .const import (
 # Rocker datapoints that carry a plain boolean into device["states"].
 ROCKER_BOOL_DATAPOINTS = [*ROCKER_DIRECTIONS, ROCKER_LED_DATAPOINT]
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .datapoints import find_datapoint, iter_datapoints_by_type
@@ -44,6 +45,7 @@ class JunghomeCoordinator(DataUpdateCoordinator):
             "switch": [],
             "event": [],
             "climate": [],
+            "scene": [],
         }
         
 
@@ -90,6 +92,10 @@ class JunghomeCoordinator(DataUpdateCoordinator):
         if not self._groups:
             await self._refresh_group_data()
 
+        # If no scene data received, fall back to HTTP for initial setup
+        if not self._scenes:
+            await self._refresh_scene_data()
+
     async def _refresh_device_data(self) -> None:
         """Refresh device data from the Jung Home hub."""
         try:
@@ -118,6 +124,18 @@ class JunghomeCoordinator(DataUpdateCoordinator):
             _LOGGER.warning("Failed to refresh group data via HTTP: %s", err)
             raise
 
+    async def _refresh_scene_data(self) -> None:
+        """Refresh scene data from the Jung Home hub."""
+        try:
+            scenes = await asyncio.wait_for(
+                JunghomeGateway.request_scenes(self.ip, self.token), timeout=30.0
+            )
+            if scenes is not None:
+                await self._update_scenes({scene["id"]: scene for scene in scenes})
+                _LOGGER.info("Scene data refreshed via HTTP: %d scenes", len(scenes))
+        except asyncio.TimeoutError:
+            _LOGGER.warning("Timed out refreshing scene data via HTTP")
+
     async def async_shutdown(self) -> None:
         """Shutdown the coordinator and disconnect WebSocket."""
         await self._gateway.disconnect_websocket()
@@ -136,7 +154,8 @@ class JunghomeCoordinator(DataUpdateCoordinator):
             self.async_set_updated_data(await self._async_update_data())
             
         elif data_type == "scenes":
-            self._scenes = data
+            await self._update_scenes(data)
+            self.async_set_updated_data(await self._async_update_data())
             
         elif data_type == "datapoint":
             # Fast path for individual datapoint updates
@@ -147,6 +166,29 @@ class JunghomeCoordinator(DataUpdateCoordinator):
             
         elif data_type == "devices-deleted":
             _LOGGER.info("Devices deleted: %s", data)
+
+    async def _update_scenes(self, scenes: dict) -> None:
+        """Update the scene list and handle entity additions and deletions."""
+        previous = self._scenes
+        self._scenes = scenes
+        if not previous or previous.keys() - scenes.keys():
+            # Also remove scenes deleted while HA was offline.
+            registry = er.async_get(self.hass)
+            unique_ids = {self.scene_unique_id(scene_id) for scene_id in scenes}
+            for entry in er.async_entries_for_config_entry(registry, self.entry.entry_id):
+                if (
+                    entry.domain == "scene"
+                    and entry.platform == DOMAIN
+                    and entry.unique_id.startswith(f"{self.entry.entry_id}_scene_")
+                    and entry.unique_id not in unique_ids
+                ):
+                    registry.async_remove(entry.entity_id)
+
+        added_ids = scenes.keys() - previous.keys()
+        if added_ids:
+            new_scenes = [scenes[scene_id] for scene_id in sorted(added_ids)]
+            for callback in self._entity_callbacks["scene"]:
+                await callback(new_scenes)
 
     async def _handle_device_changes(self, old_functions: dict, new_functions: dict) -> None:
         """Handle device additions and deletions."""
@@ -190,8 +232,6 @@ class JunghomeCoordinator(DataUpdateCoordinator):
 
     async def _remove_deleted_devices(self, device_ids: set) -> None:
         """Remove deleted devices from entity registry."""
-        from homeassistant.helpers import entity_registry as er
-        
         entity_registry = er.async_get(self.hass)
         
         for device_id in device_ids:
@@ -589,6 +629,10 @@ class JunghomeCoordinator(DataUpdateCoordinator):
     def scenes(self) -> dict:
         """Return the scenes data."""
         return self._scenes
+
+    def scene_unique_id(self, scene_id: str) -> str:
+        """Scope a gateway-local scene ID to its config entry."""
+        return f"{self.entry.entry_id}_scene_{scene_id}"
 
     def get_device_by_id(self, device_id: str) -> dict | None:
         """Get device data by device ID."""

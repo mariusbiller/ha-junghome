@@ -21,6 +21,7 @@ PLATFORMS = [
     Platform.BINARY_SENSOR,
     Platform.SWITCH,
     Platform.EVENT,
+    Platform.SCENE,
 ]
 JunghomeConfigEntry = ConfigEntry[JunghomeCoordinator]
 
