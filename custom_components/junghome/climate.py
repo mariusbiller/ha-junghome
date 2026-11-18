@@ -1,34 +1,5 @@
 """Climate-Plattform fuer JUNG HOME Raumthermostate.
 
-Erweiterung der Integration ha-junghome von Marius Biller
-(https://github.com/mariusbiller/ha-junghome).
-Entwickelt von micthon mit Unterstuetzung von KI.
-Hinweise zur Thermostat-Schnittstelle des Gateways stammen aus der
-Dokumentation von ernetas/junghome (https://github.com/ernetas/junghome).
-
-Ein JUNG-HOME-Raumthermostat ("type": "Thermostat") hat drei Datenpunkte:
-
-- ``temperature_ctrl``: Solltemperatur in °C (Bereich 5..30, Schritt 0.5) und
-  der Schluessel ``temperature_ctrl_preset``.
-  Schreiben: nur ``frost`` / ``eco`` / ``comfort``.
-  Lesen: das passende Preset oder ``""`` (= kein Preset passt). Das Gateway
-  leitet das Preset selbst ab, indem es die Solltemperatur mit den drei im
-  Thermostat hinterlegten Temperaturen vergleicht.
-- ``quantity``: gemessene Raumtemperatur (Ist-Wert).
-- ``switch``: wird bewusst NICHT ausgewertet. Trotz des Namens ist es kein
-  Ein/Aus-Schalter, und die Messwerte zeigen, dass es auch nicht zuverlaessig
-  "heizt gerade" bedeutet (alle Thermostate meldeten 1, obwohl der Raum
-  deutlich ueber der Solltemperatur lag).
-
-Das Thermostat laesst sich ueber das Gateway nicht ausschalten. Die Entitaet
-steht deshalb dauerhaft auf "heizen"; der "Ausschalter" ist das Preset ``Frost``.
-
-Preset-Erkennung: Die drei Preset-Temperaturen kennt nur das Thermostat selbst.
-Die Entitaet merkt sich deshalb jedes Mal, wenn das Gateway ein Preset samt
-Solltemperatur meldet (z. B. eco = 17 °C), welche Temperatur dazu gehoert, und
-speichert das ueber Neustarts hinweg. Stellt man spaeter per +/- wieder genau
-diese Temperatur ein, zeigt die Entitaet das Preset wieder an, auch wenn das
-Gateway selbst kein Preset mitschickt.
 """
 from __future__ import annotations
 
@@ -138,7 +109,7 @@ class JunghomeThermostat(JunghomeDeviceEntity, ClimateEntity, RestoreEntity):
 
     _device_model = "Thermostat"
 
-    _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_target_temperature_step = 0.5
     _attr_min_temp = MIN_TEMP
     _attr_max_temp = MAX_TEMP
@@ -286,7 +257,7 @@ class JunghomeThermostat(JunghomeDeviceEntity, ClimateEntity, RestoreEntity):
         return self._raw_state()[0] is not None
 
     @property
-    def target_temperature(self) -> float | None:
+    def native_target_temperature(self) -> float | None:
         """Return the target temperature."""
         target, _ = self._effective_state()
         if target is None:
@@ -294,7 +265,7 @@ class JunghomeThermostat(JunghomeDeviceEntity, ClimateEntity, RestoreEntity):
         return max(MIN_TEMP, min(MAX_TEMP, target))
 
     @property
-    def current_temperature(self) -> float | None:
+    def native_current_temperature(self) -> float | None:
         """Return the measured room temperature (only if reported in °C)."""
         device = self._get_device()
         for datapoint in device.get("datapoints", []):

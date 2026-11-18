@@ -23,9 +23,10 @@ Rocker switch events let you build automations for taps and holds, such as hold-
 
 ## Features
 
+- Automatic Gateway discovery simplifies setup by suggesting the Gateway's IP address.
 - Device states update automatically as changes happen.
 - The integration reconnects automatically if the connection to the Gateway is interrupted.
-- New devices are added automatically, and entities for removed devices are removed when the Gateway sends an updated device list.
+- Device changes are reflected in real time: new devices added, new names and entities for deleted devices are removed instantly.
 - Group names are imported from JUNG HOME and associated with the corresponding devices.
 - Devices are automatically assigned to Home Assistant areas based on their JUNG HOME groups.
 
